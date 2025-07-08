@@ -3,7 +3,7 @@
     "name": "Time Limit",
     "version": "1.0",
     "description": "Time limit extension capstone project",
-    "permissions": ["storage", "tabs", "alarms", "scripting", "activeTab"],
+    "permissions": ["storage", "tabs", "alarms", "scripting", "activeTab", "idle"],
     "background": {
         "service_worker": "background.js",
         "type": "module"

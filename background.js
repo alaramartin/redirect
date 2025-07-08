@@ -3,6 +3,24 @@ chrome.runtime.onInstalled.addListener(() => {
   initialize();
 });
 
+var paused = false;
+// deal with user closing the laptop
+chrome.idle.onStateChanged.addListener(async state => {
+  if (state === "locked") {
+    // pause time tracking
+    paused = true;
+    if (startTime && currentTab) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      await updateTime(getTabDomain(currentTab), elapsed);
+      startTime = null;
+    }
+  } else if (state === "active") {
+    // resume time tracking
+    paused = false;
+    startTime = Date.now(); // new session, restart the timer
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getScreenTime") {
     loadTimeList().then((screenTime) => {
@@ -55,13 +73,16 @@ async function initialize() {
 }
 
 function getMinutesUntilMidnight() {
-  const now = Date.now();
-  const MILLISECONDS_IN_A_DAY = 86400000;
-  const MILLISECONDS_IN_A_MINUTE = 60000;
+  const now = new Date();
+  const midnight = new Date();
+  // midnight of next day
+  midnight.setHours(24, 0, 0, 0);
+  // making sure it's at least 0.01, in case it fires at midnight
+  const minUntilMidnight = Math.max(0.01, ((midnight - now) / 60000).toFixed(2));
 
-  var millisElapsed = now % MILLISECONDS_IN_A_DAY;
-  var minutesLeft = Math.floor((MILLISECONDS_IN_A_DAY - millisElapsed) / MILLISECONDS_IN_A_MINUTE);
-  return minutesLeft;
+  console.log(minUntilMidnight, " minutes until midnight");
+  
+  return minUntilMidnight;
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -253,8 +274,19 @@ chrome.alarms.create("keep-awake", {
     delayInMinutes: 0.5,
     periodInMinutes: 0.5
 });
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "keep-awake") {
-    console.log("awake");
+    if (paused || !startTime || !currentTab) return;
+    const elapsed = (Date.now() - startTime) / 1000;
+    startTime = Date.now();
+    await updateTime(getTabDomain(currentTab), elapsed);
   }
 });
+
+
+// // when the tab is closed (and there are no other tabs that replace it, i.e. window is closed and there is nothing to track)
+// chrome.tabs.onRemoved.addListener(async function (tabId, changeInfo, tab) {
+//   // if no new tab, then turn off the timer for the last one and update. do NOT start a new timer
+//  // (if new tab, do nothing because that's handled by onactivated and onupdated)
+    
+// });
