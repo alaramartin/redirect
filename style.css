@@ -3,15 +3,44 @@
     font-size: 17px;
 }
 
+/* style of the popup:
+
+has to GIVE productivity
+clean, simple, elegant
+dark-ish grey, white accents, cool blue
+rounded edges
+
+
+create:
+add limit button. when button is pressed, the #limit-form pops up. when set limit button is pressed, form disappears again
+
+
+
+*/
+
+header {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    background: #8FAEBC;
+    border:#636D6E;
+    padding: 15px;
+    margin: 5px;
+    border: solid #636D6E;
+    border-width: 3px;
+    border-radius: 15px;
+    text-align: center;
+}
+
 body {
-    min-width: 300px;
+    min-width: 500px;
     max-width: 100%;
+    min-height: 100px;
+    max-height: 100%;
     position: relative;
     vertical-align:middle;
 
-    background-color: lightblue;
-
-    
+    background-color: #D5DEE0;
 }
 
 button, input[type=submit] {
@@ -24,4 +53,28 @@ button, input[type=submit] {
 
 button:active, input[type=submit]:active {
     background-color: lightgray;
+}
+
+#limit-form, #limits, #usage {
+    border: solid #636D6E;
+    border-width: 3px;
+    border-radius: 15px;
+    margin: 6px;
+    background-color: #8FAEBC;
+    padding: 2px 15px;
+}
+
+li {
+    list-style-type: none;
+    list-style-position: outside;
+    margin-left: -15px;
+    margin-right: 15px;
+    margin-top: 10px;
+    padding: 10px;
+    border: solid rgb(47, 47, 47);
+    border-width: 3px;
+    border-radius: 15px;
+    background-color: rgb(206, 206, 206);
+
+    text-align: center;
 }
