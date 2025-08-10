@@ -21,6 +21,31 @@ chrome.idle.onStateChanged.addListener(async state => {
   }
 });
 
+// deal with chrome browser being out of focus
+chrome.windows.onFocusChanged.addListener(async function(window) {
+    if (window == chrome.windows.WINDOW_ID_NONE) {
+        paused = true;
+        if (startTime && currentTab) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          await updateTime(getTabDomain(currentTab), elapsed);
+          startTime = null;
+        }
+    }
+    else {
+      paused = false;
+      startTime = Date.now();
+    }
+});
+
+// deal with chrome is being quit
+chrome.runtime.onSuspend.addListener(async () => {
+  console.log("Extension being suspended - saving final time");
+  if (startTime && currentTab) {
+    const elapsed = (Date.now() - startTime) / 1000;
+    await updateTime(getTabDomain(currentTab), elapsed);
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getScreenTime") {
     loadTimeList().then((screenTime) => {
@@ -282,11 +307,3 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     await updateTime(getTabDomain(currentTab), elapsed);
   }
 });
-
-
-// // when the tab is closed (and there are no other tabs that replace it, i.e. window is closed and there is nothing to track)
-// chrome.tabs.onRemoved.addListener(async function (tabId, changeInfo, tab) {
-//   // if no new tab, then turn off the timer for the last one and update. do NOT start a new timer
-//  // (if new tab, do nothing because that's handled by onactivated and onupdated)
-    
-// });

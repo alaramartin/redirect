@@ -8,41 +8,47 @@
   </head>
   
   <body>
-    <!-- form for user input - inputting the website url and time limit -->
-    <form id="userlimit">
-      <p>
-        <label for="timelim">Website URL: </label>
-        <input type = "text" id="timelimurl"/>
-      </p>
-      <p>
-        Time Limit:
-      </p>
-      <p>
-        <label for="timelim">Hours (0 if none): </label>
-        <input type = "number" id="timelimh">
-      </p>
-      <p>
-        <label for="timelim">Minutes (0 if none): </label>
-        <input type = "number" id="timelimmin">
-      </p>
-      <p>
-        <label for="timelim">Seconds (0 if none): </label>
-        <input type = "number" id="timelimsec">
-      </p>
-      <input type="submit" value="Set Limit">
-    </form>
+    <header>Screen Time</header>
+    <div id="limit-form">
+      <!-- form for user input - inputting the website url and time limit -->
+      <form id="userlimit">
+        <p>
+          <label for="timelim">Website URL: </label>
+          <input type = "text" id="timelimurl"/>
+        </p>
+        <p>
+          Time Limit:
+        </p>
+        <p>
+          <label for="timelim">Hours (0 if none): </label>
+          <input type = "number" id="timelimh">
+        </p>
+        <p>
+          <label for="timelim">Minutes (0 if none): </label>
+          <input type = "number" id="timelimmin">
+        </p>
+        <p>
+          <label for="timelim">Seconds (0 if none): </label>
+          <input type = "number" id="timelimsec">
+        </p>
+        <input type="submit" value="Set Limit">
+      </form>
+    </div>
+    
+    <div id="limits">
+      <p>Time Limits Set</p>
+      <ul id="list-of-limits">
+        <!-- limits will be added here in a list -->
+      </ul>
+      <button id="reset">Reset Limits</button>
+    </div>
 
-    <p>Time Limits Set</p>
-    <ul id="list-of-limits">
-      <!-- limits will be added here in a list -->
-    </ul>
-
-    <button id="reset">Reset Limits</button>
-
-    <p>Usage</p>
-    <ul id="list-of-screen-time">
-      <!-- screen time spent will be added here in a list -->
-    </ul>
+    <div id="usage">
+      <p>Usage</p>
+      <ul id="list-of-screen-time">
+        <!-- screen time spent will be added here in a list -->
+      </ul>
+    </div>
 
     <script type="module" src="popup.js"></script>
     
