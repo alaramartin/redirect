@@ -1,9 +1,4 @@
-/* todo:
-* iterate through list and find the one that it should go BEFORE
-* orderedList.insertBefore(newItem, secondItem);
-*/
-
-// todo: make every time limit an object
+// todo: make every time limit an object ... ?????
 function WebsiteSettings(websiteName, timeLimit, timeUsage) {
     this.websiteName = websiteName;
     this.timeLimit = timeLimit; // in seconds
