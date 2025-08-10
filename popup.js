@@ -1,3 +1,15 @@
+/* todo:
+* iterate through list and find the one that it should go BEFORE
+* orderedList.insertBefore(newItem, secondItem);
+*/
+
+// todo: make every time limit an object
+function WebsiteSettings(websiteName, timeLimit, timeUsage) {
+    this.websiteName = websiteName;
+    this.timeLimit = timeLimit; // in seconds
+    this.timeUsage = timeUsage; // in seconds
+}
+
 function addItemToList(item, list) {
     var newItem = document.createElement("li");
     newItem.innerHTML = item;
@@ -51,7 +63,11 @@ async function displayList() {
 function displayTimeList(screenTime) {
     let timeList = document.getElementById("list-of-screen-time");
     timeList.innerHTML = "";
-    for (const [key, value] of Object.entries(screenTime)) {
+    // convert dictionary to array of key-value
+    let usageEntries = Object.entries(screenTime)
+    // sort the usage list in descending order by value
+    usageEntries.sort((a, b) => b[1] - a[1]);
+    for (const [key, value] of usageEntries) {
         var hours = Math.floor(value/(60*60));
         var minutes = Math.floor((value - hours*60*60)/60);
         var seconds = (value - hours*60*60 - minutes*60).toFixed(2);
