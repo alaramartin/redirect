@@ -1,8 +1,9 @@
 // todo: make every time limit an object ... ?????
-function WebsiteSettings(websiteName, timeLimit, timeUsage) {
+function WebsiteSettings(websiteName, timeLimit, timeUsage, redirect) {
     this.websiteName = websiteName;
     this.timeLimit = timeLimit; // in seconds
     this.timeUsage = timeUsage; // in seconds
+    this.redirect = redirect ? redirect : ""; // website URl to redirect to, if specified
 }
 
 function addItemToList(item, list) {
@@ -33,12 +34,22 @@ async function loadTimeList() {
     });
 }
 
+function formatTime(seconds) {
+    seconds = Number(seconds) || 0;
+    var hours = Math.floor(seconds/(60*60));
+    var minutes = Math.floor((seconds - hours*60*60)/60);
+    var seconds = (seconds - hours*60*60 - minutes*60).toFixed(2);
+    var stringToPrint = "";
+    stringToPrint += hours != 0 ? `${hours} hours, ` : "";
+    stringToPrint += minutes != 0 ? `${minutes} minutes, ` : "";
+    stringToPrint += seconds != 0 ? `${seconds} seconds` : "";
+    return stringToPrint;
+}
+
 let lims = {};
 async function init() {
     lims = await loadLimitsList();
     displayList();
-    // let usage = await loadTimeList();
-    // displayTimeList(usage);
     loadTimeList();
 }
 init();
@@ -51,17 +62,15 @@ async function displayList() {
     limsList.innerHTML = "";
     lims = await loadLimitsList();
     for (const [key, value] of Object.entries(lims)) {
-        var hours = Math.floor(value/(60*60));
-        var minutes = Math.floor((value - hours*60*60)/60);
-        var seconds = (value - hours*60*60 - minutes*60).toFixed(2);
-        var stringToPrint = "";
-        stringToPrint += hours != 0 ? `${hours} hours, ` : "";
-        stringToPrint += minutes != 0 ? `${minutes} minutes, ` : "";
-        stringToPrint += seconds != 0 ? `${seconds} seconds` : "";
+        const limitSeconds = (typeof value === "object" && value.timeLimit !== undefined) ? value.timeLimit : value;
+        var stringToPrint = formatTime(limitSeconds);
+        // show redirect if the user specified one
+        stringToPrint += (typeof value === "object" && value.redirect) ? `, redirect: ${value.redirect}` : "";
         // don't add undefined to the list
         if (key) {
             addItemToList(`Website: ${key}, time limit: ${stringToPrint}`, limsList);
         }
+        
     }
 }
 
@@ -73,13 +82,8 @@ function displayTimeList(screenTime) {
     // sort the usage list in descending order by value
     usageEntries.sort((a, b) => b[1] - a[1]);
     for (const [key, value] of usageEntries) {
-        var hours = Math.floor(value/(60*60));
-        var minutes = Math.floor((value - hours*60*60)/60);
-        var seconds = (value - hours*60*60 - minutes*60).toFixed(2);
-        var stringToPrint = "";
-        stringToPrint += hours != 0 ? `${hours} hours, ` : "";
-        stringToPrint += minutes != 0 ? `${minutes} minutes, ` : "";
-        stringToPrint += seconds != 0 ? `${seconds} seconds` : "";
+        const limitSeconds = (typeof value === "object" && value.timeLimit !== undefined) ? value.timeLimit : value;
+        var stringToPrint = formatTime(limitSeconds);
         // don't add undefined to the list
         if (key) {
             addItemToList(`Website: ${key}, usage: ${stringToPrint}`, timeList);
@@ -108,9 +112,14 @@ inputElement.addEventListener("submit", async function(event) {
     event.preventDefault(); // stop the extension from reloading
     var website = document.getElementById("timelimurl").value;
     var timeLim = parseInt(document.getElementById("timelimh").value) * 60 * 60 + parseInt(document.getElementById("timelimmin").value) * 60 + parseInt(document.getElementById("timelimsec").value);
+    var redirect = document.getElementById("redirect").value;
     // check that it wasn't empty input
     if (website) {
-        lims[website] = timeLim;
+        await loadLimitsList();
+        const existingWebsiteInfo = lims[website];
+        const existingUsage = (existingWebsiteInfo && existingWebsiteInfo.timeUsage) ? existingWebsiteInfo.timeUsage : 0;
+         // saves as the currently saved usage if there is any
+        lims[website] = new WebsiteSettings(website, timeLim, existingUsage, redirect);
         await saveLimitsList(lims);
         displayList();
     }
