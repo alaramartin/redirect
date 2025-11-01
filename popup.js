@@ -51,7 +51,17 @@ async function displayList() {
     limsList.innerHTML = "";
     lims = await loadLimitsList();
     for (const [key, value] of Object.entries(lims)) {
-        addItemToList("Website: " + key + ", time limit: " +  value, limsList);
+        var hours = Math.floor(value/(60*60));
+        var minutes = Math.floor((value - hours*60*60)/60);
+        var seconds = (value - hours*60*60 - minutes*60).toFixed(2);
+        var stringToPrint = "";
+        stringToPrint += hours != 0 ? `${hours} hours, ` : "";
+        stringToPrint += minutes != 0 ? `${minutes} minutes, ` : "";
+        stringToPrint += seconds != 0 ? `${seconds} seconds` : "";
+        // don't add undefined to the list
+        if (key) {
+            addItemToList(`Website: ${key}, time limit: ${stringToPrint}`, limsList);
+        }
     }
 }
 
@@ -66,26 +76,54 @@ function displayTimeList(screenTime) {
         var hours = Math.floor(value/(60*60));
         var minutes = Math.floor((value - hours*60*60)/60);
         var seconds = (value - hours*60*60 - minutes*60).toFixed(2);
-        addItemToList(`Website: ${key}, usage: ${hours} hours, ${minutes} minutes, ${seconds} seconds`, timeList);
+        var stringToPrint = "";
+        stringToPrint += hours != 0 ? `${hours} hours, ` : "";
+        stringToPrint += minutes != 0 ? `${minutes} minutes, ` : "";
+        stringToPrint += seconds != 0 ? `${seconds} seconds` : "";
+        // don't add undefined to the list
+        if (key) {
+            addItemToList(`Website: ${key}, usage: ${stringToPrint}`, timeList);
+        }
     }
 }
 
+// listen to when the add limit button is pressed and show the website limit adding form
+let addLimitButton = document.getElementById("add-limit-option");
+addLimitButton.addEventListener("click", () => {
+    addLimitButton.style.display = "none";
+    document.getElementById("limit-form").style.display = "block";
+});
+
+// listen for cancel button, if pressed then get rid of limit-form and show the button again
+let cancelButton = document.getElementById("cancel-set-limit");
+cancelButton.addEventListener("click", () => {
+    addLimitButton.style.display = "block";
+    document.getElementById("limit-form").style.display = "none";
+})
+
 // get the time limit user input (convert to seconds) and save to list `lims`
-// TODO: make the input require domain name format AND reject empty input ""
+// TODO: make the input require domain name format
 const inputElement = document.getElementById("userlimit");
 inputElement.addEventListener("submit", async function(event) {
     event.preventDefault(); // stop the extension from reloading
     var website = document.getElementById("timelimurl").value;
     var timeLim = parseInt(document.getElementById("timelimh").value) * 60 * 60 + parseInt(document.getElementById("timelimmin").value) * 60 + parseInt(document.getElementById("timelimsec").value);
-    lims[website] = timeLim;
-    await saveLimitsList(lims);
-    displayList();
+    // check that it wasn't empty input
+    if (website) {
+        lims[website] = timeLim;
+        await saveLimitsList(lims);
+        displayList();
+    }
     // reset the input fields after submitting
     document.getElementById("timelimurl").value = "";
     document.getElementById("timelimh").value = "";
     document.getElementById("timelimmin").value = "";
     document.getElementById("timelimsec").value = "";
     console.log("hi");
+
+    // hide the limit form and show the button again
+    addLimitButton.style.display = "block";
+    document.getElementById("limit-form").style.display = "none";
 });
 
 // deletes all saved limits
@@ -105,4 +143,4 @@ chrome.runtime.onMessage.addListener((message) => {
         console.log("Popup received update:", JSON.stringify(message.data));
         displayTimeList(message.data);
     }
-})
+});

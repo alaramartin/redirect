@@ -22,11 +22,11 @@ header {
     position: sticky;
     top: 0;
     z-index: 999;
-    background: #8FAEBC;
-    border:#636D6E;
+    background: #8faebc;
+    border: #636d6e;
     padding: 15px;
     margin: 5px;
-    border: solid #636D6E;
+    border: solid #636d6e;
     border-width: 3px;
     border-radius: 15px;
     text-align: center;
@@ -38,12 +38,13 @@ body {
     min-height: 100px;
     max-height: 100%;
     position: relative;
-    vertical-align:middle;
+    vertical-align: middle;
 
-    background-color: #D5DEE0;
+    background-color: #d5dee0;
 }
 
-button, input[type=submit] {
+button,
+input[type="submit"] {
     border: 1px solid gray;
     border-radius: 5px;
     background-color: white;
@@ -51,17 +52,24 @@ button, input[type=submit] {
     margin: 10px;
 }
 
-button:active, input[type=submit]:active {
+button:active,
+input[type="submit"]:active {
     background-color: lightgray;
 }
 
-#limit-form, #limits, #usage {
-    border: solid #636D6E;
+#limit-form,
+#limits,
+#usage {
+    border: solid #636d6e;
     border-width: 3px;
     border-radius: 15px;
     margin: 6px;
-    background-color: #8FAEBC;
+    background-color: #8faebc;
     padding: 2px 15px;
+}
+
+#limit-form {
+    display: none;
 }
 
 li {
@@ -77,4 +85,16 @@ li {
     background-color: rgb(206, 206, 206);
 
     text-align: center;
+}
+
+#add-limit-option {
+    border: solid #636d6e;
+    border-width: 3px;
+    border-radius: 15px;
+    margin: auto;
+    background-color: #8faebc;
+    padding: 15px 15px;
+    justify-content: center;
+    display: block;
+    cursor: pointer;
 }
