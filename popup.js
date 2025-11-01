@@ -59,17 +59,26 @@ init();
 // no duplicates, if there is a duplicate key it updates the value
 async function displayList() {
     let limsList = document.getElementById("list-of-limits");
+    if (!limsList) return;
     limsList.innerHTML = "";
     lims = await loadLimitsList();
+
     for (const [key, value] of Object.entries(lims)) {
-        const limitSeconds = (typeof value === "object" && value.timeLimit !== undefined) ? value.timeLimit : value;
-        var stringToPrint = formatTime(limitSeconds);
-        // show redirect if the user specified one
-        stringToPrint += (typeof value === "object" && value.redirect) ? `, redirect: ${value.redirect}` : "";
-        // don't add undefined to the list
-        if (key) {
-            addItemToList(`Website: ${key}, time limit: ${stringToPrint}`, limsList);
+        const hasObj = (typeof value === "object");
+        const limitSeconds = hasObj && value.timeLimit !== undefined ? Number(value.timeLimit) : 0;
+        if (!hasObj || limitSeconds <= 0) {
+            // skip entries that don't have a time limit
+            continue;
         }
+        const limitStr = formatTime(limitSeconds);
+        let stringToPrint = `time limit: ${limitStr}`;
+
+        // show redirect if the user specified one
+        if (hasObj && value.redirect) {
+            stringToPrint += `, redirect: ${value.redirect}`;
+        }
+
+        addItemToList(`Website: ${key}, ${stringToPrint}`, limsList);
         
     }
 }

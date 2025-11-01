@@ -23,11 +23,11 @@ chrome.idle.onStateChanged.addListener(async state => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getScreenTime") {
-    loadTimeList().then((limits) => {
-      sendResponse({ data: buildUsageMap(limits) }).catch((err) => {
-        console.error("getScreenTime message errored", err);
-        sendResponse({data: {}});
-      });
+    loadLimitsList().then((limits) => {
+      sendResponse({ data: buildUsageMap(limits) });
+    }).catch((err) => {
+      console.error("getScreenTime error", err);
+      sendResponse({ data: {} });
     });
     // tells Chrome you're responding async
     return true; 
@@ -46,24 +46,15 @@ async function loadLimitsList() {
   return result.limits;
 }
 
-// save the list of alarms (same idea as popup.js savelist)
-async function saveTimeList(list) {
-  await chrome.storage.local.set({ "timespent" : list });
+async function saveLimitsList(list) {
+  await chrome.storage.local.set({ "limits": list });
 }
 
-// load the list of screen time usage (same idea as popup.js loadlist)
-async function loadTimeList() {
-  const result = await chrome.storage.local.get("timespent");
-  if (result.timespent == undefined) return {};
-  console.log("loadtimelist", result.timespent);
-  return result.timespent;
-}
 
 let screenTime = {};
 let lims = {};
 let timeoutId = null;
 async function initialize() {
-  // screenTime = await loadTimeList();
   lims = await loadLimitsList();
   console.log(screenTime, lims);
   timeoutId = null;
@@ -103,7 +94,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         lims[host].timeUsage = 0;
       }
     }
-    await saveTimeList(lims);
+    await saveLimitsList(lims);
     // tell popup to reset the list of usage
     chrome.runtime.sendMessage({
       action: "list-of-screen-time",
@@ -175,7 +166,7 @@ async function updateTime(website, time) {
   const prev = Number(lims[website].timeUsage) || 0;
   lims[website].timeUsage = prev + Number(time || 0);
 
-  await saveTimeList(lims);
+  await saveLimitsList(lims);
   console.log("upadting time spent for", website);
 
   // display the list
@@ -204,7 +195,6 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
 });
 
 async function handleWebsiteChange() {
-  screenTime = await loadTimeList();
   lims = await loadLimitsList();
   let oldTab = currentTab;
   currentTab = await getCurrentTab();
@@ -292,7 +282,7 @@ async function stopTimer() {
     lims[currentTabHostname].timeUsage = limit;
   }
 
-  await saveTimeList(lims);
+  await saveLimitsList(lims);
   clearTimeout(timeoutId);
   timeoutId = null;
 
@@ -333,11 +323,3 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     await updateTime(getTabDomain(currentTab), elapsed);
   }
 });
-
-
-// // when the tab is closed (and there are no other tabs that replace it, i.e. window is closed and there is nothing to track)
-// chrome.tabs.onRemoved.addListener(async function (tabId, changeInfo, tab) {
-//   // if no new tab, then turn off the timer for the last one and update. do NOT start a new timer
-//  // (if new tab, do nothing because that's handled by onactivated and onupdated)
-    
-// });
