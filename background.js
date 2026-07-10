@@ -239,7 +239,7 @@ async function updateTime(website, time) {
   chrome.runtime.sendMessage({
     action: "list-of-screen-time",
     data: buildUsageMap(lims)
-  });
+  }).catch(() => {}); // popup may not be open
 }
 
 // saves time spent on the website when tab switched
@@ -358,7 +358,7 @@ async function stopTimer() {
   chrome.runtime.sendMessage({
     action: "list-of-screen-time",
     data: buildUsageMap(lims)
-  });
+  }).catch(() => {}); // popup may not be open
 }
 
 // inject content script to block access to the site
