@@ -7,3 +7,19 @@ This is a Chrome extension that lets users set time limits and checks if the lim
 -   set a time limit for any website
 -   track screen time usage
 -   resets daily!
+
+## development
+
+The popup UI is built with React + TypeScript via Vite. The service worker
+(`public/background.js`) and blocking scripts stay plain JS and are copied
+into the build as-is.
+
+```
+npm install        # once
+npm run build      # type-checks and builds into dist/
+npm run dev        # rebuilds on every file change
+```
+
+Load the extension by pointing chrome://extensions "Load unpacked" at the
+**`dist/`** folder (not the repo root). After code changes, rebuild and hit
+the reload button on the extension card.
