@@ -1,4 +1,4 @@
-// todo: make every time limit an object ... ?????
+// make every time limit an object
 function WebsiteSettings(websiteName, timeLimit, timeUsage, redirect) {
     this.websiteName = websiteName;
     this.timeLimit = timeLimit; // in seconds

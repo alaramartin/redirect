@@ -3,6 +3,12 @@ chrome.runtime.onInstalled.addListener(() => {
   initialize();
 });
 
+// the alarm alone isn't reliable across browser restarts, so re-initialize on startup too
+chrome.runtime.onStartup.addListener(() => {
+  console.log("Browser started up");
+  initialize();
+});
+
 var paused = false;
 // deal with user closing the laptop
 chrome.idle.onStateChanged.addListener(async state => {
@@ -23,14 +29,15 @@ chrome.idle.onStateChanged.addListener(async state => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getScreenTime") {
-    loadLimitsList().then((limits) => {
+    // check for a missed reset first so the popup never shows stale usage
+    checkAndReset().then(() => loadLimitsList()).then((limits) => {
       sendResponse({ data: buildUsageMap(limits) });
     }).catch((err) => {
       console.error("getScreenTime error", err);
       sendResponse({ data: {} });
     });
     // tells Chrome you're responding async
-    return true; 
+    return true;
   }
 
   if (message.action === "blocked-website") {
@@ -59,17 +66,80 @@ async function initialize() {
   console.log(screenTime, lims);
   timeoutId = null;
 
-  // create alarm that triggers at midnight every day to update the popup
-  chrome.alarms.create("reset-at-midnight", {
-    delayInMinutes: getMinutesUntilMidnight(),
-    periodInMinutes: 1440
-  });
+  await ensureDailyReset();
 
   // send initial
   chrome.runtime.sendMessage({
     action: "list-of-screen-time",
     data: buildUsageMap(lims)
-  })
+  }).catch(() => {}); // popup may not be open
+}
+
+// local calendar date as YYYY-M-D, built from local Date parts so it always
+// reflects the user's current timezone (don't use toLocaleDateString -- its
+// format depends on locale settings and could change under us)
+function getLocalDateString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+// resets all usage if the local calendar date has changed since the last reset.
+// because the date is recomputed from the current timezone on every call, this
+// handles timezone switches too. a backward timezone jump (crossing the date
+// line) makes the date differ and grants one extra reset window -- accepted,
+// it errs toward giving the user more time.
+// returns true if a reset happened.
+async function checkAndReset() {
+  const today = getLocalDateString();
+  const result = await chrome.storage.local.get("lastResetDate");
+
+  if (!result.lastResetDate) {
+    // first run: just record today, nothing to reset
+    await chrome.storage.local.set({ "lastResetDate": today });
+    return false;
+  }
+
+  if (result.lastResetDate === today) return false;
+
+  console.log("new day detected, resetting usage. last reset:", result.lastResetDate);
+  lims = await loadLimitsList();
+  for (const host of Object.keys(lims || {})) {
+    if (lims[host] && typeof lims[host] === "object") {
+      lims[host].timeUsage = 0;
+    }
+  }
+  await saveLimitsList(lims);
+  await chrome.storage.local.set({ "lastResetDate": today });
+
+  // fresh day: cancel any pending block timer and restart the current session
+  // so a blocked site becomes usable immediately
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    timeoutId = null;
+  }
+  timeSpent = 0;
+  if (startTime != null) startTime = Date.now();
+
+  // tell popup to reset the list of usage
+  chrome.runtime.sendMessage({
+    action: "list-of-screen-time",
+    data: buildUsageMap(lims)
+  }).catch(() => {}); // popup may not be open
+  return true;
+}
+
+// one-shot alarm aimed at the next local midnight. re-armed after every fire
+// (and on every service worker wake) so it realigns after DST/timezone changes,
+// unlike a fixed 24h period which drifts.
+function scheduleMidnightAlarm() {
+  chrome.alarms.create("reset-at-midnight", {
+    delayInMinutes: getMinutesUntilMidnight()
+  });
+}
+
+async function ensureDailyReset() {
+  await checkAndReset();
+  scheduleMidnightAlarm();
 }
 
 function getMinutesUntilMidnight() {
@@ -87,19 +157,15 @@ function getMinutesUntilMidnight() {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "reset-at-midnight") {
-    lims = await loadLimitsList();
-    // reset to 0
-    for (const host of Object.keys(lims || {})) {
-      if (lims[host] && typeof lims[host] === "object") {
-        lims[host].timeUsage = 0;
-      }
+    // flush time spent so far to the old day before resetting
+    if (!paused && startTime && currentTab) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      startTime = Date.now();
+      await updateTime(getTabDomain(currentTab), elapsed);
     }
-    await saveLimitsList(lims);
-    // tell popup to reset the list of usage
-    chrome.runtime.sendMessage({
-      action: "list-of-screen-time",
-      data: buildUsageMap(lims)
-    })
+    await checkAndReset();
+    // re-arm the one-shot alarm for the next local midnight
+    scheduleMidnightAlarm();
   }
 })
 
@@ -145,7 +211,7 @@ let startTime = null;
 chrome.runtime.sendMessage({
   action: "list-of-screen-time",
   data: buildUsageMap()
-});
+}).catch(() => {}); // popup may not be open
 
 async function updateTime(website, time) {
   if (!website) return;
@@ -195,6 +261,8 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
 });
 
 async function handleWebsiteChange() {
+  // cheap guard on every tab event: catch missed midnights/timezone changes
+  await checkAndReset();
   lims = await loadLimitsList();
   let oldTab = currentTab;
   currentTab = await getCurrentTab();
@@ -310,8 +378,13 @@ async function blockSite(tab) {
     });
 }
 
+// the service worker re-runs this top-level code every time it wakes up, so
+// this catches missed resets and realigns the midnight alarm even when the
+// browser stayed open (e.g. after a timezone change)
+ensureDailyReset();
+
 // alarm that triggers every 30 seconds to keep the popup awake
-chrome.alarms.create("keep-awake", { 
+chrome.alarms.create("keep-awake", {
     delayInMinutes: 0.5,
     periodInMinutes: 0.5
 });
