@@ -568,6 +568,51 @@ async function blockSite(tab) {
     });
 }
 
+// live ticker: while the popup is open it connects a port, and we push a
+// display update every second that includes the current session's not-yet-
+// flushed seconds. display only -- storage still writes on the usual 30s
+// flush, and the interval dies with the port when the popup closes.
+// (an open port also keeps this service worker awake, so setInterval is safe)
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "popup") return;
+
+  const tick = async () => {
+    await checkAndReset(); // popup must never show stale usage across midnight
+    const lims = await loadLimitsList();
+
+    // copy so the pending session seconds never leak into storage
+    const display = JSON.parse(JSON.stringify(lims || {}));
+    if (!paused && startTime && currentTab) {
+      const host = getTabDomain(currentTab);
+      if (host) {
+        if (!display[host] || typeof display[host] !== "object") {
+          display[host] = { websiteName: host, timeLimit: 0, timeUsage: 0, redirect: "" };
+        }
+        display[host].timeUsage =
+          (Number(display[host].timeUsage) || 0) + (Date.now() - startTime) / 1000;
+      }
+    }
+
+    const cats = await loadCategories();
+    const resolve = await makeHostResolver();
+    try {
+      port.postMessage({
+        action: "list-of-screen-time",
+        data: {
+          sites: buildUsageMap(display),
+          categories: buildCategoriesWithUsage(display, cats, resolve)
+        }
+      });
+    } catch (e) {
+      // port already closed
+    }
+  };
+
+  tick();
+  const interval = setInterval(tick, 1000);
+  port.onDisconnect.addListener(() => clearInterval(interval));
+});
+
 // the service worker re-runs this top-level code every time it wakes up, so
 // this catches missed resets and realigns the midnight alarm even when the
 // browser stayed open (e.g. after a timezone change)

@@ -53,7 +53,16 @@ export default function App() {
       }
     };
     chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
+
+    // live ticker: this port makes the background push usage (including the
+    // in-progress session's seconds) every second while the popup is open
+    const port = chrome.runtime.connect({ name: "popup" });
+    port.onMessage.addListener(listener);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener);
+      port.disconnect();
+    };
   }, []);
 
   async function handleSetLimit(website: string, limitSeconds: number, redirect: string) {
