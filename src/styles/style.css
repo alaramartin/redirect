@@ -1,140 +1,316 @@
-* {
-    font-family: serif;
-    font-size: 17px;
+/* calm blue/gray palette -- keep public/block.html's inline <style> in sync
+   with these values manually, since it's a static file outside the Vite/
+   React build and can't share this stylesheet. */
+:root {
+  --color-bg: #eef2f4;
+  --color-panel: #f8fafb;
+  --color-border: #d7e0e4;
+  --color-text: #33424a;
+  --color-text-muted: #6b7c84;
+  --color-accent: #5b8ba3;
+  --color-accent-hover: #4d7890;
+  --color-track: #dde5e8;
+  --color-blocked: #97a3a9;
+  --color-error: #8a4b4b;
+  --color-warning: #8a7440;
+  --radius: 8px;
+  --radius-sm: 6px;
 }
 
-/* style of the popup:
-
-has to GIVE productivity
-clean, simple, elegant
-dark-ish grey, white accents, cool blue
-rounded edges
-
-
-create:
-add limit button. when button is pressed, the #limit-form pops up. when set limit button is pressed, form disappears again
-
-
-
-*/
-
-header {
-    position: sticky;
-    top: 0;
-    z-index: 999;
-    background: #8faebc;
-    border: #636d6e;
-    padding: 15px;
-    margin: 5px;
-    border: solid #636d6e;
-    border-width: 3px;
-    border-radius: 15px;
-    text-align: center;
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
 }
 
 body {
-    min-width: 500px;
-    max-width: 100%;
-    min-height: 100px;
-    max-height: 100%;
-    position: relative;
-    vertical-align: middle;
+  min-width: 560px;
+  max-width: 100%;
+  min-height: 100px;
+  max-height: 100%;
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
 
-    background-color: #d5dee0;
+header {
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+  padding: 14px 16px;
+  font-size: 1.15em;
+  font-weight: 600;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px;
+}
+
+.button-row > .panel {
+  flex-basis: 100%;
+  order: 2;
+}
+
+.option-button {
+  order: 1;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin: 6px 10px;
+  background: var(--color-panel);
+  padding: 12px 16px;
+}
+
+.panel-title {
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+#add-limit-form,
+#assign-form,
+#focus-form {
+  scroll-margin-top: 60px;
+}
+
+.form-cancel {
+  margin-top: 10px;
+}
+
+#reset {
+  margin-top: 10px;
 }
 
 button,
 input[type="submit"] {
-    border: 1px solid gray;
-    border-radius: 5px;
-    background-color: white;
-
-    margin: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--color-text);
+  padding: 5px 12px;
+  cursor: pointer;
 }
 
-button:active,
-input[type="submit"]:active {
-    background-color: lightgray;
+button:hover,
+input[type="submit"]:hover {
+  background: var(--color-track);
 }
 
-#limit-form,
-#category-form,
-#assign-form,
-#focus-form,
-#focus,
-#limits,
-#categories,
-#usage {
-    border: solid #636d6e;
-    border-width: 3px;
-    border-radius: 15px;
-    margin: 6px;
-    background-color: #8faebc;
-    padding: 2px 15px;
+input[type="submit"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  margin-top: 6px;
 }
 
-#limit-form,
-#category-form,
-#assign-form,
-#focus-form {
-    display: none;
+input[type="submit"]:hover {
+  background: var(--color-accent-hover);
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--color-text);
+}
+
+label {
+  color: var(--color-text-muted);
 }
 
 li {
-    list-style-type: none;
-    list-style-position: outside;
-    margin-left: -15px;
-    margin-right: 15px;
-    margin-top: 10px;
-    padding: 10px;
-    border: solid rgb(47, 47, 47);
-    border-width: 3px;
-    border-radius: 15px;
-    background-color: rgb(206, 206, 206);
+  list-style-type: none;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
 
-    text-align: center;
+ul {
+  padding-left: 0;
+  margin: 0;
 }
 
 /* small pencil button next to each limit entry */
 .edit-limit {
-    margin: 0 0 0 10px;
-    padding: 1px 8px;
-    cursor: pointer;
+  padding: 1px 8px;
+  font-size: 0.85em;
+  color: var(--color-text-muted);
 }
 
-/* when an edit icon scrolls its form into view, leave room for the sticky header */
-#limit-form,
-#category-form {
-    scroll-margin-top: 80px;
+.limit-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.limit-row-label {
+  font-weight: 500;
+}
+
+.limit-row-detail {
+  margin-top: 8px;
+  font-size: 0.85em;
+  color: var(--color-text-muted);
 }
 
 .form-error {
-    color: #5a2727;
-    font-style: italic;
+  color: var(--color-error);
+  font-weight: 500;
 }
 
 .form-warning {
-    color: #5a4a27;
-    font-style: italic;
+  color: var(--color-warning);
+  font-weight: 500;
 }
 
 .form-hint {
-    color: #4a5a5e;
-    font-size: 0.85em;
-    font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 0.85em;
 }
 
-#add-limit-option,
-#add-category-option,
-#assign-site-option,
-#start-focus-option {
-    border: solid #636d6e;
-    border-width: 3px;
-    border-radius: 15px;
-    margin: auto;
-    background-color: #8faebc;
-    padding: 15px 15px;
-    justify-content: center;
-    display: block;
-    cursor: pointer;
+/* progress bar: fills to 100% at the full time limit */
+.progress-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-track);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--color-accent);
+}
+
+.progress-fill.over-limit {
+  background: var(--color-blocked);
+}
+
+.progress-track.blocked {
+  background: var(--color-blocked);
+}
+
+/* usage bar graph */
+.bar-graph {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 150px;
+  /* generous top padding: overflow-x:auto forces overflow-y to auto too, so
+     the tallest bar's tooltip (which pops up above it) needs clear room
+     here or it gets clipped by the scroll container -- sized for up to a
+     two-line wrapped tooltip, since long labels wrap rather than stretch
+     wide. side padding gives an edge bar's tooltip room too, and bottom
+     padding keeps the labels clear of the border below them. */
+  padding: 58px 40px 10px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  /* grow to fill the row when there are few bars; never shrink narrower
+     than this, so a crowded row scrolls instead of squeezing unreadable */
+  flex: 1 0 54px;
+  min-width: 54px;
+}
+
+.bar {
+  position: relative;
+  width: 18px;
+  min-height: 2px;
+  background: var(--color-accent);
+  border-radius: 3px 3px 0 0;
+}
+
+.bar-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-text);
+  color: #fff;
+  font-size: 0.75em;
+  width: 140px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 10;
+}
+
+/* the first/last column's tooltip would otherwise center past the edge of
+   the (horizontally scrollable) graph and get clipped -- anchor it to the
+   bar's own edge instead of centering it */
+.bar-col:first-child .bar-tooltip {
+  left: 0;
+  transform: none;
+  text-align: left;
+}
+
+.bar-col:last-child .bar-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+  text-align: right;
+}
+
+.bar:hover .bar-tooltip {
+  opacity: 1;
+}
+
+.bar-label {
+  margin-top: 6px;
+  max-width: 54px;
+  font-size: 0.7em;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* hour/minute/second duration dropdown row */
+.duration-select {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.duration-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.duration-unit {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
 }

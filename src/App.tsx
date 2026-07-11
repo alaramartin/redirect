@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import FocusMode from "./components/FocusMode";
-import LimitForm from "./components/LimitForm";
-import CategoryForm from "./components/CategoryForm";
+import AddLimitForm from "./components/AddLimitForm";
 import AssignSiteForm from "./components/AssignSiteForm";
-import LimitsList from "./components/LimitsList";
-import CategoryList from "./components/CategoryList";
-import UsageList from "./components/UsageList";
+import TimeLimitsSection from "./components/TimeLimitsSection";
+import CategoryAssignmentsList from "./components/CategoryAssignmentsList";
+import UsageSection from "./components/UsageSection";
 import type {
   BackgroundMessage,
   CategoriesMap,
+  EditTarget,
   LimitsMap,
   SiteCategoriesMap,
   SiteLimit,
@@ -37,9 +37,8 @@ export default function App() {
   const [siteCategories, setSiteCategories] = useState<SiteCategoriesMap>({});
   const [bundled, setBundled] = useState<BundledCategories>(EMPTY_BUNDLED);
   const [focusEnd, setFocusEnd] = useState(0);
-  // which limit an edit icon opened for editing (null = not editing)
-  const [editSite, setEditSite] = useState<string | null>(null);
-  const [editCategory, setEditCategory] = useState<string | null>(null);
+  // which entry an edit icon opened for editing (null = not editing)
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   // ticking clock so the focus countdown is live and the lock lifts the
   // moment the timer runs out, without reopening the popup
   const [now, setNow] = useState(() => Date.now());
@@ -180,50 +179,47 @@ export default function App() {
     setFocusEnd(end);
     setNow(Date.now());
     // any in-progress edit is void once limits are locked
-    setEditSite(null);
-    setEditCategory(null);
+    setEditTarget(null);
   }
 
   return (
     <>
       <Header />
-      <FocusMode focusEnd={focusEnd} now={now} onStart={handleStartFocus} />
-      {!focusLocked && (
-        <>
-          <LimitForm
-            limits={limits}
-            categories={categories}
-            siteCategories={siteCategories}
-            bundled={bundled}
-            onSetLimit={handleSetLimit}
-            editHost={editSite}
-            onEditDone={() => setEditSite(null)}
-          />
-          <CategoryForm
-            limits={limits}
-            categories={categories}
-            siteCategories={siteCategories}
-            bundled={bundled}
-            onSetCategoryLimit={handleSetCategoryLimit}
-            editCategory={editCategory}
-            onEditDone={() => setEditCategory(null)}
-          />
-          <AssignSiteForm onAssignSite={handleAssignSite} />
-        </>
-      )}
-      <LimitsList
+      <div className="button-row">
+        <FocusMode focusEnd={focusEnd} now={now} onStart={handleStartFocus} />
+        {!focusLocked && (
+          <>
+            <AddLimitForm
+              limits={limits}
+              categories={categories}
+              siteCategories={siteCategories}
+              bundled={bundled}
+              onSetLimit={handleSetLimit}
+              onSetCategoryLimit={handleSetCategoryLimit}
+              editTarget={editTarget}
+              onEditDone={() => setEditTarget(null)}
+            />
+            <AssignSiteForm onAssignSite={handleAssignSite} />
+          </>
+        )}
+      </div>
+      <TimeLimitsSection
         limits={limits}
+        categories={categories}
+        bundled={bundled}
+        onEditSite={(host) => setEditTarget({ kind: "site", host })}
+        onEditCategory={(category) => setEditTarget({ kind: "category", category })}
         onReset={handleReset}
-        onEdit={setEditSite}
         focusLocked={focusLocked}
       />
-      <CategoryList
+      <CategoryAssignmentsList siteCategories={siteCategories} bundled={bundled} />
+      <UsageSection
+        usage={usage}
+        limits={limits}
         categories={categories}
         siteCategories={siteCategories}
-        onEdit={setEditCategory}
-        focusLocked={focusLocked}
+        bundled={bundled}
       />
-      <UsageList usage={usage} />
     </>
   );
 }

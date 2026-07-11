@@ -4,9 +4,10 @@ import type { CategoryId, SiteCategoriesMap } from "./types";
 export interface BundledCategories {
   categories: string[];
   domains: Record<string, CategoryId>;
+  names: Record<string, string>; // domain -> friendly display name, e.g. "instagram.com" -> "Instagram"
 }
 
-export const EMPTY_BUNDLED: BundledCategories = { categories: [], domains: {} };
+export const EMPTY_BUNDLED: BundledCategories = { categories: [], domains: {}, names: {} };
 
 export async function loadBundledCategories(): Promise<BundledCategories> {
   try {

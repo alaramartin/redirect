@@ -40,12 +40,13 @@ export default function AssignSiteForm({ onAssignSite }: AssignSiteFormProps) {
     <>
       <button
         id="assign-site-option"
-        style={{ display: showForm ? "none" : "block" }}
+        className="option-button"
+        style={{ display: showForm ? "none" : "inline-flex" }}
         onClick={() => setShowForm(true)}
       >
-        Assign Website to Category
+        Modify categories
       </button>
-      <div id="assign-form" style={{ display: showForm ? "block" : "none" }}>
+      <div id="assign-form" className="panel" style={{ display: showForm ? "block" : "none" }}>
         <form id="assignsite" onSubmit={handleSubmit}>
           <p>
             <label htmlFor="assignhost">Website URL: </label>
@@ -75,7 +76,7 @@ export default function AssignSiteForm({ onAssignSite }: AssignSiteFormProps) {
           {error && <p className="form-error">{error}</p>}
           <input type="submit" value="Assign" />
         </form>
-        <button id="cancel-assign-site" onClick={() => setShowForm(false)}>
+        <button id="cancel-assign-site" className="form-cancel" onClick={() => setShowForm(false)}>
           Cancel
         </button>
       </div>

@@ -5,13 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Website blocked</title>
     <style>
+      /* keep these values in sync with src/styles/style.css's :root custom
+         properties -- this file is copied verbatim by Vite (not part of the
+         React build), so it can't share that stylesheet. */
+      :root {
+        --color-bg: #eef2f4;
+        --color-panel: #f8fafb;
+        --color-border: #d7e0e4;
+        --color-text: #33424a;
+        --color-text-muted: #6b7c84;
+        --radius: 8px;
+        --radius-sm: 6px;
+      }
       body {
         margin: 0;
         min-height: 100vh;
         display: grid;
         place-items: center;
-        background: #d5dee0;
-        font-family: serif;
+        background: var(--color-bg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       }
       .card {
         display: flex;
@@ -20,16 +32,17 @@
         gap: 14px;
       }
       .title {
-        font-size: 28px;
-        color: #2f2f2f;
-        background: #8faebc;
-        border: 3px solid #636d6e;
-        border-radius: 15px;
-        padding: 25px 50px;
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--color-text);
+        background: var(--color-panel);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        padding: 22px 46px;
       }
       .site {
-        font-size: 18px;
-        color: #2f2f2f;
+        font-size: 15px;
+        color: var(--color-text-muted);
       }
       .countdown {
         display: none;
@@ -38,24 +51,26 @@
         gap: 10px;
       }
       .countdown-text {
-        font-size: 20px;
-        color: #2f2f2f;
+        font-size: 15px;
+        color: var(--color-text-muted);
       }
       .cancel {
-        font-family: serif;
-        font-size: 17px;
-        color: #2f2f2f;
-        background: white;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px 15px;
+        font-family: inherit;
+        font-size: 14px;
+        color: var(--color-text);
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 5px 14px;
         cursor: pointer;
+      }
+      .cancel:hover {
+        background: var(--color-bg);
       }
       .notice {
         display: none;
-        font-style: italic;
-        font-size: 17px;
-        color: #2f2f2f;
+        font-size: 14px;
+        color: var(--color-text-muted);
         max-width: 560px;
         text-align: center;
       }

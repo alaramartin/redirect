@@ -64,3 +64,8 @@ export interface UsagePayload {
 export type BackgroundMessage =
   | { action: "list-of-screen-time"; data: UsagePayload }
   | { action: "reset-usage" };
+
+// which entry an edit pencil opened AddLimitForm for (null = adding new)
+export type EditTarget =
+  | { kind: "site"; host: string }
+  | { kind: "category"; category: string };

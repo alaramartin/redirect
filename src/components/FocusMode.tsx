@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MIN_LIMIT_SECONDS, MAX_LIMIT_SECONDS } from "../shared/types";
 import { formatTime } from "../shared/format";
+import TimeDurationSelect from "./TimeDurationSelect";
 
 interface FocusModeProps {
   focusEnd: number; // ms epoch, 0/past = off
@@ -13,26 +14,18 @@ interface FocusModeProps {
 // live countdown instead -- there is intentionally no cancel/stop button.
 export default function FocusMode({ focusEnd, now, onStart }: FocusModeProps) {
   const [showForm, setShowForm] = useState(false);
-  const [hours, setHours] = useState("");
-  const [minutes, setMinutes] = useState("");
-  const [seconds, setSeconds] = useState("");
+  const [duration, setDuration] = useState(0);
   const [error, setError] = useState("");
 
   const active = focusEnd > now;
 
   function clearInputs() {
-    setHours("");
-    setMinutes("");
-    setSeconds("");
+    setDuration(0);
     setError("");
   }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const duration =
-      (parseInt(hours) || 0) * 60 * 60 +
-      (parseInt(minutes) || 0) * 60 +
-      (parseInt(seconds) || 0);
     if (duration < MIN_LIMIT_SECONDS) {
       setError("Focus time must be at least 1 second");
       return;
@@ -48,12 +41,9 @@ export default function FocusMode({ focusEnd, now, onStart }: FocusModeProps) {
 
   if (active) {
     return (
-      <div id="focus">
-        <p>Focus mode is on.</p>
-        <p>
-          Your limits are locked for the next{" "}
-          {formatTime((focusEnd - now) / 1000)}.
-        </p>
+      <div id="focus" className="panel">
+        <p className="panel-title">Focus mode is on</p>
+        <p>Your limits are locked for the next {formatTime((focusEnd - now) / 1000)}.</p>
       </div>
     );
   }
@@ -62,52 +52,26 @@ export default function FocusMode({ focusEnd, now, onStart }: FocusModeProps) {
     <>
       <button
         id="start-focus-option"
-        style={{ display: showForm ? "none" : "block" }}
+        className="option-button"
+        style={{ display: showForm ? "none" : "inline-flex" }}
         onClick={() => setShowForm(true)}
       >
-        Start Focus Mode
+        Start focus mode
       </button>
-      <div id="focus-form" style={{ display: showForm ? "block" : "none" }}>
-        <p>
-          <em>
-            While focus mode is running, your limits are locked: you can't add,
-            edit, or remove any website or category limit until the time is up
-            — no matter what.
-          </em>
+      <div id="focus-form" className="panel" style={{ display: showForm ? "block" : "none" }}>
+        <p className="form-hint">
+          While focus mode is running, your limits are locked: you can't add, edit, or remove
+          any website or category limit until the time is up — no matter what.
         </p>
         <form id="focusmode" onSubmit={handleSubmit}>
           <p>Focus for:</p>
           <p>
-            <label htmlFor="focush">Hours (0 if none): </label>
-            <input
-              type="number"
-              id="focush"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-            />
-          </p>
-          <p>
-            <label htmlFor="focusmin">Minutes (0 if none): </label>
-            <input
-              type="number"
-              id="focusmin"
-              value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
-            />
-          </p>
-          <p>
-            <label htmlFor="focussec">Seconds (0 if none): </label>
-            <input
-              type="number"
-              id="focussec"
-              value={seconds}
-              onChange={(e) => setSeconds(e.target.value)}
-            />
+            <TimeDurationSelect id="focus-duration" value={duration} onChange={setDuration} />
           </p>
           {error && <p className="form-error">{error}</p>}
-          <input type="submit" value="Start Focus Mode" />
+          <input type="submit" value="Start focus mode" />
         </form>
-        <button id="cancel-focus" onClick={() => { clearInputs(); setShowForm(false); }}>
+        <button id="cancel-focus" className="form-cancel" onClick={() => { clearInputs(); setShowForm(false); }}>
           Cancel
         </button>
       </div>

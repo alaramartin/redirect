@@ -1,3 +1,3 @@
 export default function Header() {
-  return <header>Screen Time</header>;
+  return <header>Screen time</header>;
 }
