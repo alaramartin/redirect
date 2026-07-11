@@ -7,6 +7,10 @@ export interface SiteLimit {
   timeUsage: number; // in seconds
   redirect: string; // website URL to redirect to once blocked, if specified
   blocked?: boolean; // outright blocked ("block this website completely"), independent of time
+  // true once the background has sent the "5 minutes left" notification for
+  // this site today; cleared on the daily reset (and implicitly whenever the
+  // popup saves a fresh limit, since that writes a brand-new entry object)
+  notifiedNearLimit?: boolean;
 }
 
 // bounds for user-entered time limits (site and category)
@@ -37,6 +41,10 @@ export interface CategoryLimit {
   timeLimit: number; // in seconds
   timeUsage: number; // in seconds, combined across all sites in the category
   redirect?: string; // website to redirect to when the category budget blocks a site
+  // true once the background has sent the "5 minutes left" notification for
+  // this category today; cleared on the daily reset (and implicitly whenever
+  // the popup saves a fresh category limit, since that writes a brand-new entry)
+  notifiedNearLimit?: boolean;
 }
 
 export type CategoriesMap = Record<CategoryId, CategoryLimit>;

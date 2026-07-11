@@ -3,7 +3,7 @@
     "name": "Time Limit",
     "version": "1.0",
     "description": "Set a limit for any website to get blocked after a certain amount of time.",
-    "permissions": ["storage", "tabs", "alarms", "idle"],
+    "permissions": ["storage", "tabs", "alarms", "idle", "notifications"],
     "background": {
         "service_worker": "background.js",
         "type": "module"

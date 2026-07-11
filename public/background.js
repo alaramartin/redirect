@@ -267,6 +267,122 @@ async function getTimeLeftForHost(host, limsObj) {
   return Infinity;
 }
 
+// which budget governs a key's near-limit notification, and its total length
+// -- mirrors getTimeLeftForHost's own-rule-beats-category precedence, but also
+// needs the *total* limit (not just what's left) to know whether the "5
+// minutes left" warning even applies (it's skipped for limits <=5 min), and
+// where to persist the "already notified today" flag. null if no time-based
+// limit governs this key (unlimited, or outright blocked -- a block has no
+// countdown to warn about).
+async function getGoverningLimitInfo(key, limsObj) {
+  const entry = limsObj ? limsObj[key] : null;
+  if (entry && entry.blocked) return null;
+
+  if (hasOwnRule(entry)) {
+    return {
+      scope: "site",
+      id: key,
+      limitSeconds: Number(entry.timeLimit) || 0,
+      notified: !!entry.notifiedNearLimit,
+    };
+  }
+
+  const resolve = await makeHostResolver();
+  const cat = resolve(keyHost(key));
+  if (cat) {
+    const cats = await loadCategories();
+    if (cats[cat] && Number(cats[cat].timeLimit) > 0) {
+      return {
+        scope: "category",
+        id: cat,
+        limitSeconds: Number(cats[cat].timeLimit),
+        notified: !!cats[cat].notifiedNearLimit,
+      };
+    }
+  }
+  return null;
+}
+
+// friendly label for a notification message -- exact bundled match, then a
+// subdomain suffix match, else the raw host. mirrors src/shared/siteName.ts's
+// displayName(), which the popup can't share with this plain-JS background.
+function displayNameForHost(host, bundled) {
+  const names = (bundled && bundled.names) || {};
+  if (host in names) return names[host];
+  for (const [domain, name] of Object.entries(names)) {
+    if (host.endsWith("." + domain)) return name;
+  }
+  return host;
+}
+
+// arm (or skip) the "5 minutes left" notification for the site/category that
+// currently governs `key`, based on the same timeLeft just computed for the
+// block timer. Only ever one notify timer pending at a time -- callers clear
+// any previous one before calling this, same as the block timer (timeoutId).
+async function scheduleNearLimitNotice(key, timeLeftMs, limsObj) {
+  if (!key || timeLeftMs === Infinity) return;
+
+  const info = await getGoverningLimitInfo(key, limsObj);
+  if (!info) return;
+  if (info.limitSeconds <= NEAR_LIMIT_WARNING_SECONDS) return; // too short to warn about
+  if (info.notified) return; // already sent today (or since this limit was set)
+
+  const delay = timeLeftMs - NEAR_LIMIT_WARNING_SECONDS * 1000;
+  if (delay <= 0) {
+    // already within the last 5 minutes the moment this tab became active
+    await fireNearLimitNotice(key, info);
+  } else {
+    notifyTimeoutId = setTimeout(() => fireNearLimitNotice(key, info), delay);
+  }
+}
+
+// fires the notification and marks it sent so it never repeats for this
+// site/category until the daily reset (or the limit is changed/removed and
+// re-set). re-checks fresh storage first since a lot can happen in 5 minutes
+// (limit edited/removed/reset, already notified via another path).
+async function fireNearLimitNotice(key, info) {
+  notifyTimeoutId = null;
+
+  const freshLims = await loadLimitsList();
+  const fresh = await getGoverningLimitInfo(key, freshLims);
+  if (!fresh || fresh.notified || fresh.scope !== info.scope || fresh.id !== info.id) return;
+  if (fresh.limitSeconds <= NEAR_LIMIT_WARNING_SECONDS) return;
+
+  const bundled = await loadBundledCategories();
+  const message =
+    fresh.scope === "category"
+      ? `You have about 5 minutes left in your "${fresh.id}" category limit today.`
+      : `You have about 5 minutes left on ${displayNameForHost(keyHost(key), bundled)} today.`;
+
+  chrome.notifications.create(`near-limit-${fresh.scope}-${fresh.id}`, {
+    type: "basic",
+    iconUrl: "icon.png",
+    title: "Almost out of time",
+    message,
+  });
+
+  await markNotified(fresh);
+}
+
+// persists the "already notified" flag so it survives service worker
+// restarts and isn't re-sent on the next tab switch; cleared on the daily
+// reset (see checkAndReset) so a fresh day can notify again.
+async function markNotified(info) {
+  if (info.scope === "site") {
+    const current = await loadLimitsList();
+    if (current[info.id] && typeof current[info.id] === "object") {
+      current[info.id].notifiedNearLimit = true;
+      await saveLimitsList(current);
+    }
+  } else {
+    const cats = await loadCategories();
+    if (cats[info.id]) {
+      cats[info.id].notifiedNearLimit = true;
+      await chrome.storage.local.set({ categories: cats });
+    }
+  }
+}
+
 // push current usage (sites + categories) to the popup, if it's open
 async function notifyPopup(limsObj) {
   const cats = await loadCategories();
@@ -284,6 +400,12 @@ async function notifyPopup(limsObj) {
 let screenTime = {};
 let lims = {};
 let timeoutId = null;
+// timer for the "5 minutes left" notification, separate from the block
+// timer (timeoutId) so the two can be scheduled/cleared independently
+let notifyTimeoutId = null;
+// a limit shorter than this never gets a near-limit notification -- there's
+// no meaningful "5 minutes before the end" warning for e.g. a 3-minute limit
+const NEAR_LIMIT_WARNING_SECONDS = 5 * 60;
 async function initialize() {
   await migrate();
   lims = await loadLimitsList();
@@ -327,17 +449,27 @@ async function checkAndReset() {
   for (const host of Object.keys(lims || {})) {
     if (lims[host] && typeof lims[host] === "object") {
       lims[host].timeUsage = 0;
+      delete lims[host].notifiedNearLimit;
     }
   }
   // (category usage is derived from site usage, so zeroing the sites gives
   // every category budget a fresh day too)
-  await chrome.storage.local.set({ "limits": lims, "lastResetDate": today });
+  const cats = await loadCategories();
+  for (const id of Object.keys(cats || {})) {
+    if (cats[id] && typeof cats[id] === "object") delete cats[id].notifiedNearLimit;
+  }
+  await chrome.storage.local.set({ "limits": lims, "categories": cats, "lastResetDate": today });
 
-  // fresh day: cancel any pending block timer and restart the current session
-  // so a blocked site becomes usable immediately
+  // fresh day: cancel any pending block timer (and near-limit notice timer)
+  // and restart the current session so a blocked site becomes usable
+  // immediately
   if (timeoutId) {
     clearTimeout(timeoutId);
     timeoutId = null;
+  }
+  if (notifyTimeoutId) {
+    clearTimeout(notifyTimeoutId);
+    notifyTimeoutId = null;
   }
   timeSpent = 0;
   if (startTime != null) startTime = Date.now();
@@ -579,7 +711,13 @@ async function handleWebsiteChange() {
   if (timeoutId) {
     clearTimeout(timeoutId);
   }
-  
+  // clear the previous tab's pending near-limit notice too -- it no longer
+  // applies once the user has navigated away
+  if (notifyTimeoutId) {
+    clearTimeout(notifyTimeoutId);
+    notifyTimeoutId = null;
+  }
+
   // begin timing new url -- but don't start the session until we know the
   // site isn't already out of time: a blocked site must not accumulate usage
   // while the user sits on it (every flush path reads startTime)
@@ -605,6 +743,10 @@ async function handleWebsiteChange() {
     timeoutId = setTimeout(() => timeout(currentTab), timeLeft);
     console.log("set timeout timer ", timeoutId, " ", currentTabHostname);
   }
+
+  // arm the "5 minutes left" notice for whichever budget governs this tab
+  // (a no-op if the limit is <=5min, unlimited, or already notified today)
+  await scheduleNearLimitNotice(currentTabHostname, timeLeft, lims);
 }
 
 // block the tab once time is up
@@ -675,6 +817,11 @@ async function stopTimer() {
   await saveLimitsList(lims);
   clearTimeout(timeoutId);
   timeoutId = null;
+  // the site is now blocked -- any pending "5 minutes left" notice for it is moot
+  if (notifyTimeoutId) {
+    clearTimeout(notifyTimeoutId);
+    notifyTimeoutId = null;
+  }
 
   // notify popup
   await notifyPopup(lims);
