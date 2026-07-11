@@ -10,10 +10,12 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 var paused = false;
-// deal with user closing the laptop
+// false when Chrome doesn't have OS focus (user switched to another app/window)
+var windowFocused = true;
+
+// stop tracking when the screen is locked or the system sleeps
 chrome.idle.onStateChanged.addListener(async state => {
   if (state === "locked") {
-    // pause time tracking
     paused = true;
     if (startTime && currentTab) {
       const elapsed = (Date.now() - startTime) / 1000;
@@ -24,9 +26,47 @@ chrome.idle.onStateChanged.addListener(async state => {
     // resume time tracking -- but through the same path as a tab change, so a
     // blocked/over-limit site doesn't get a fresh session (this event also
     // fires after ~60s of no input, not just on unlock) and the block timer
-    // is re-armed for sites that still have time left
+    // is re-armed for sites that still have time left.
+    // only resume if Chrome actually has OS focus; "active" fires whenever the
+    // user does anything on the computer, not specifically in Chrome.
     paused = false;
-    handleWebsiteChange();
+    if (windowFocused) {
+      handleWebsiteChange();
+    }
+  }
+});
+
+// pause/resume tracking based on whether Chrome has OS focus.
+// WINDOW_ID_NONE means the user switched to another app or all Chrome windows closed.
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    if (!windowFocused) return; // already paused for focus loss
+    windowFocused = false;
+    if (startTime && currentTab) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      await updateTime(getTabTarget(currentTab, lims), elapsed);
+      startTime = null;
+    }
+  } else {
+    const wasUnfocused = !windowFocused;
+    windowFocused = true;
+    if (wasUnfocused) {
+      // returning from another app: resume tracking. tabs.onActivated won't
+      // fire for the same tab, so we have to kick it ourselves.
+      await handleWebsiteChange();
+    }
+    // switching between Chrome windows: tabs.onActivated already handles it.
+  }
+});
+
+// flush any unsaved time when the service worker is about to be terminated
+// (e.g. browser quit). abrupt sleep won't reliably fire this, but the 30s
+// keep-awake alarm covers that window.
+chrome.runtime.onSuspend.addListener(async () => {
+  if (startTime && currentTab) {
+    const elapsed = (Date.now() - startTime) / 1000;
+    await updateTime(getTabTarget(currentTab, lims), elapsed);
+    startTime = null;
   }
 });
 
@@ -337,7 +377,7 @@ function getMinutesUntilMidnight() {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "reset-at-midnight") {
     // flush time spent so far to the old day before resetting
-    if (!paused && startTime && currentTab) {
+    if (!paused && windowFocused && startTime && currentTab) {
       const elapsed = (Date.now() - startTime) / 1000;
       startTime = Date.now();
       await updateTime(getTabTarget(currentTab, lims), elapsed);
@@ -510,6 +550,12 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
 });
 
 async function handleWebsiteChange() {
+  // don't start or continue tracking while the screen is locked or Chrome
+  // doesn't have OS focus. tab/navigation events can still fire in the
+  // background (e.g. a tab loading while the user is in another app) and
+  // without this guard they would (incorrectly) start a new session.
+  if (paused || !windowFocused) return;
+
   // cheap guard on every tab event: catch missed midnights/timezone changes
   await checkAndReset();
   lims = await loadLimitsList();
@@ -718,7 +764,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
     // copy so the pending session seconds never leak into storage
     const display = JSON.parse(JSON.stringify(lims || {}));
-    if (!paused && startTime && currentTab) {
+    if (!paused && windowFocused && startTime && currentTab) {
       const host = getTabTarget(currentTab, lims);
       if (host) {
         if (!display[host] || typeof display[host] !== "object") {
@@ -761,7 +807,7 @@ chrome.alarms.create("keep-awake", {
 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "keep-awake") {
-    if (paused || !startTime || !currentTab) return;
+    if (paused || !windowFocused || !startTime || !currentTab) return;
     const elapsed = (Date.now() - startTime) / 1000;
     startTime = Date.now();
     await updateTime(getTabTarget(currentTab, lims), elapsed);
