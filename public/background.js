@@ -21,9 +21,12 @@ chrome.idle.onStateChanged.addListener(async state => {
       startTime = null;
     }
   } else if (state === "active") {
-    // resume time tracking
+    // resume time tracking -- but through the same path as a tab change, so a
+    // blocked/over-limit site doesn't get a fresh session (this event also
+    // fires after ~60s of no input, not just on unlock) and the block timer
+    // is re-armed for sites that still have time left
     paused = false;
-    startTime = Date.now(); // new session, restart the timer
+    handleWebsiteChange();
   }
 });
 
@@ -467,29 +470,30 @@ async function handleWebsiteChange() {
     clearTimeout(timeoutId);
   }
   
-  // begin timing new url
+  // begin timing new url -- but don't start the session until we know the
+  // site isn't already out of time: a blocked site must not accumulate usage
+  // while the user sits on it (every flush path reads startTime)
   timeSpent = 0;
-  startTime = Date.now();
+  startTime = null;
 
   // set a timeout timer -> call timeout() when the screen time limit runs out
   // IF THERE IS A TIME LIMIT SET (site or category) or the site is outright
   // blocked (getTimeLeftForHost returns -Infinity for those)
   const timeLeft = await getTimeLeftForHost(currentTabHostname, lims);
 
+  if (timeLeft !== Infinity && timeLeft <= 0) {
+    // limit already surpassed: block and leave the session stopped
+    console.log("time limit already surpassed");
+    await blockSite(currentTab);
+    return;
+  }
+
+  startTime = Date.now();
   if (timeLeft !== Infinity) {
     console.log("time difference: ", timeLeft);
-    // if a limit has already been surpassed, immediately block
-    if (timeLeft <= 0) {
-      console.log("time limit already surpassed");
-      await blockSite(currentTab);
-      startTime = null;
-    }
-    // else, if there is still time left, set timout timer
-    else {
-      // function reference to timeout(), to call after a delay of `timeLeft`
-      timeoutId = setTimeout(() => timeout(currentTab), timeLeft);
-      console.log("set timeout timer ", timeoutId, " ", currentTabHostname);
-    }
+    // function reference to timeout(), to call after a delay of `timeLeft`
+    timeoutId = setTimeout(() => timeout(currentTab), timeLeft);
+    console.log("set timeout timer ", timeoutId, " ", currentTabHostname);
   }
 }
 
@@ -533,7 +537,11 @@ async function stopTimer() {
   let currentTabHostname = getTabDomain(currentTab);
   if (!currentTabHostname) return;
 
-  timeSpent += (Date.now() - startTime) / 1000;
+  // startTime can already be null if the session was stopped by a racing
+  // tab event -- guard so we never add (Date.now() - null) i.e. NaN
+  if (startTime != null) {
+    timeSpent += (Date.now() - startTime) / 1000;
+  }
   // idk if i need this line but just to make sure it doesn't try to update again once tab changes
   startTime = null;
 

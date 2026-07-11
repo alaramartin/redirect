@@ -8,7 +8,7 @@ This is a Chrome extension that lets users set time limits and checks if the lim
 - track screen time usage
 - resets daily!
 - set a shared limit on a whole category (entertainment, social, news,
-  shopping, games, productivity) — e.g. 30 minutes across youtube + netflix
-  combined, then everything in the category blocks. Popular sites are
+  shopping, games, productivity), where popular sites are
   categorized out of the box (`public/categories.json`); you can assign any
   website to a category (or opt one out) from the popup.
+- set a "redirect website" that automatically redirects you when a limit is reached
