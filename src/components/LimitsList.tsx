@@ -4,10 +4,11 @@ import { formatTime } from "../shared/format";
 interface LimitsListProps {
   limits: LimitsMap;
   onReset: () => void;
+  focusLocked: boolean;
 }
 
 // the "Time Limits Set" panel: entries with an actual limit or an outright block
-export default function LimitsList({ limits, onReset }: LimitsListProps) {
+export default function LimitsList({ limits, onReset, focusLocked }: LimitsListProps) {
   const entries = Object.entries(limits).filter(
     ([, value]) =>
       value && typeof value === "object" && (Number(value.timeLimit) > 0 || value.blocked)
@@ -27,9 +28,12 @@ export default function LimitsList({ limits, onReset }: LimitsListProps) {
           </li>
         ))}
       </ul>
-      <button id="reset" onClick={onReset}>
-        Reset Limits
-      </button>
+      {/* removing limits counts as modifying them: no reset during focus mode */}
+      {!focusLocked && (
+        <button id="reset" onClick={onReset}>
+          Reset Limits
+        </button>
+      )}
     </div>
   );
 }

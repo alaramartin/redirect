@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
+import FocusMode from "./components/FocusMode";
 import LimitForm from "./components/LimitForm";
 import CategoryForm from "./components/CategoryForm";
 import AssignSiteForm from "./components/AssignSiteForm";
@@ -21,6 +22,9 @@ import {
   saveCategories,
   loadSiteCategories,
   saveSiteCategories,
+  loadFocusEnd,
+  saveFocusEnd,
+  isFocusLocked,
   requestUsage,
 } from "./shared/storage";
 import type { BundledCategories } from "./shared/categories";
@@ -32,12 +36,23 @@ export default function App() {
   const [categories, setCategories] = useState<CategoriesMap>({});
   const [siteCategories, setSiteCategories] = useState<SiteCategoriesMap>({});
   const [bundled, setBundled] = useState<BundledCategories>(EMPTY_BUNDLED);
+  const [focusEnd, setFocusEnd] = useState(0);
+  // ticking clock so the focus countdown is live and the lock lifts the
+  // moment the timer runs out, without reopening the popup
+  const [now, setNow] = useState(() => Date.now());
+  const focusLocked = focusEnd > now;
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // initial load: limits/overrides from storage, usage from the background
     loadLimits().then(setLimits);
     loadSiteCategories().then(setSiteCategories);
     loadBundledCategories().then(setBundled);
+    loadFocusEnd().then(setFocusEnd);
     requestUsage().then((payload) => {
       setUsage(payload.sites);
       setCategories(payload.categories);
@@ -69,12 +84,23 @@ export default function App() {
     };
   }, []);
 
+  // every mutating handler re-checks focus mode against STORAGE at save time
+  // (not just React state), so limits stay un-modifiable during focus mode no
+  // matter what state the popup UI is in. returns true if the save must be
+  // dropped, and syncs the lock into view state so the forms disappear.
+  async function refuseWhileFocused(): Promise<boolean> {
+    if (!(await isFocusLocked())) return false;
+    setFocusEnd(await loadFocusEnd());
+    return true;
+  }
+
   async function handleSetLimit(
     website: string,
     limitSeconds: number,
     redirect: string,
     blocked: boolean
   ) {
+    if (await refuseWhileFocused()) return;
     const current = await loadLimits();
     // keep any usage already tracked for this site today
     const existingUsage = current[website]?.timeUsage ?? 0;
@@ -95,6 +121,7 @@ export default function App() {
     limitSeconds: number,
     redirect: string
   ) {
+    if (await refuseWhileFocused()) return;
     const current = await loadCategories();
     // usage isn't stored on the category -- the background derives it from
     // the sites in the category, so a new limit starts at today's real usage
@@ -110,6 +137,7 @@ export default function App() {
 
   // category === undefined removes the override; null = explicitly uncategorized
   async function handleAssignSite(host: string, category: string | null | undefined) {
+    if (await refuseWhileFocused()) return;
     const current = await loadSiteCategories();
     const updated = { ...current };
     if (category === undefined) {
@@ -129,6 +157,7 @@ export default function App() {
   // in place instead of deleting the entries. category assignments are kept
   // too (they're configuration, not limits).
   async function handleReset() {
+    if (await refuseWhileFocused()) return;
     const current = await loadLimits();
     const cleared: LimitsMap = {};
     for (const [host, entry] of Object.entries(current)) {
@@ -140,25 +169,39 @@ export default function App() {
     setCategories({});
   }
 
+  async function handleStartFocus(durationSeconds: number) {
+    // if somehow already focused, never let a new start SHORTEN the lock
+    const existing = await loadFocusEnd();
+    const end = Math.max(existing, Date.now() + durationSeconds * 1000);
+    await saveFocusEnd(end);
+    setFocusEnd(end);
+    setNow(Date.now());
+  }
+
   return (
     <>
       <Header />
-      <LimitForm
-        limits={limits}
-        categories={categories}
-        siteCategories={siteCategories}
-        bundled={bundled}
-        onSetLimit={handleSetLimit}
-      />
-      <CategoryForm
-        limits={limits}
-        categories={categories}
-        siteCategories={siteCategories}
-        bundled={bundled}
-        onSetCategoryLimit={handleSetCategoryLimit}
-      />
-      <AssignSiteForm onAssignSite={handleAssignSite} />
-      <LimitsList limits={limits} onReset={handleReset} />
+      <FocusMode focusEnd={focusEnd} now={now} onStart={handleStartFocus} />
+      {!focusLocked && (
+        <>
+          <LimitForm
+            limits={limits}
+            categories={categories}
+            siteCategories={siteCategories}
+            bundled={bundled}
+            onSetLimit={handleSetLimit}
+          />
+          <CategoryForm
+            limits={limits}
+            categories={categories}
+            siteCategories={siteCategories}
+            bundled={bundled}
+            onSetCategoryLimit={handleSetCategoryLimit}
+          />
+          <AssignSiteForm onAssignSite={handleAssignSite} />
+        </>
+      )}
+      <LimitsList limits={limits} onReset={handleReset} focusLocked={focusLocked} />
       <CategoryList categories={categories} siteCategories={siteCategories} />
       <UsageList usage={usage} />
     </>

@@ -60,6 +60,8 @@ input[type="submit"]:active {
 #limit-form,
 #category-form,
 #assign-form,
+#focus-form,
+#focus,
 #limits,
 #categories,
 #usage {
@@ -73,7 +75,8 @@ input[type="submit"]:active {
 
 #limit-form,
 #category-form,
-#assign-form {
+#assign-form,
+#focus-form {
     display: none;
 }
 
@@ -104,7 +107,8 @@ li {
 
 #add-limit-option,
 #add-category-option,
-#assign-site-option {
+#assign-site-option,
+#start-focus-option {
     border: solid #636d6e;
     border-width: 3px;
     border-radius: 15px;

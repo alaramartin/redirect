@@ -45,6 +45,15 @@ export type CategoriesMap = Record<CategoryId, CategoryLimit>;
 // "explicitly uncategorized" (beats the bundled default)
 export type SiteCategoriesMap = Record<string, CategoryId | null>;
 
+// focus mode in chrome.storage.local "focus": while Date.now() < endTime,
+// limits are locked -- no adding, editing, or removing limits (site or
+// category), no Reset Limits, and no category reassignment (moving a site
+// out of a limited category would be a loophole). there is deliberately no
+// way to end it early.
+export interface FocusMode {
+  endTime: number; // ms epoch; absent or in the past = focus mode off
+}
+
 // what the background sends the popup (pushes and getScreenTime responses)
 export interface UsagePayload {
   sites: UsageMap;
