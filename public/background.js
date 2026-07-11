@@ -470,8 +470,48 @@ async function handleWebsiteChange() {
 
 // block the tab once time is up
 async function timeout(tab) {
+  // the limit may have been removed or raised since this timer was armed
+  // (e.g. the user hit Reset Limits) -- recompute before blocking
+  const host = getTabDomain(tab);
+  lims = await loadLimitsList();
+  const entry = lims[host];
+  const siteLimit = entry ? Number(entry.timeLimit || 0) : 0;
+  const siteUsage = entry ? Number(entry.timeUsage || 0) : 0;
+
+  let catLimit = 0;
+  let catUsage = 0;
+  const resolve = await makeHostResolver();
+  const cat = resolve(host);
+  if (cat) {
+    const cats = await loadCategories();
+    if (cats[cat]) {
+      const withUsage = buildCategoriesWithUsage(lims, cats, resolve);
+      catLimit = Number(withUsage[cat].timeLimit || 0);
+      catUsage = Number(withUsage[cat].timeUsage || 0);
+    }
+  }
+
+  // include the current session's not-yet-flushed seconds
+  const pending = startTime ? (Date.now() - startTime) / 1000 : 0;
+  let timeLeft = Infinity;
+  if (siteLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (siteLimit - (siteUsage + pending)));
+  if (catLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (catLimit - (catUsage + pending)));
+
+  if (timeLeft === Infinity) {
+    // no limit applies anymore: keep tracking, just drop the stale timer
+    console.log("stale block timer for", host, "-- limit no longer set");
+    timeoutId = null;
+    return;
+  }
+  if (timeLeft > 1000) {
+    // limit was raised meanwhile: re-arm for the new remainder
+    console.log("limit changed for", host, "-- re-arming for", timeLeft, "ms");
+    timeoutId = setTimeout(() => timeout(tab), timeLeft);
+    return;
+  }
+
   await blockSite(tab);
-  console.log("timed out ", getTabDomain(tab), "!");
+  console.log("timed out ", host, "!");
   // stop tracking time on the website
   await stopTimer();
 }

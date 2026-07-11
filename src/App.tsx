@@ -101,14 +101,20 @@ export default function App() {
     setCategories(payload.categories);
   }
 
-  // deletes all saved limits, category budgets, and overrides
+  // removes every time limit (site + category) but NEVER touches usage
+  // tracking -- usage lives on the same site entries, so we zero the limits
+  // in place instead of deleting the entries. category assignments are kept
+  // too (they're configuration, not limits).
   async function handleReset() {
-    await saveLimits({});
+    const current = await loadLimits();
+    const cleared: LimitsMap = {};
+    for (const [host, entry] of Object.entries(current)) {
+      cleared[host] = { ...entry, timeLimit: 0, redirect: "" };
+    }
+    await saveLimits(cleared);
     await saveCategories({});
-    await saveSiteCategories({});
-    setLimits({});
+    setLimits(cleared);
     setCategories({});
-    setSiteCategories({});
   }
 
   return (
