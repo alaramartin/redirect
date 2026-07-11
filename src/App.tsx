@@ -73,14 +73,16 @@ export default function App() {
 
   async function handleSetCategoryLimit(category: string, limitSeconds: number) {
     const current = await loadCategories();
-    // keep any usage the category has already accumulated today
-    const existingUsage = current[category]?.timeUsage ?? 0;
+    // usage isn't stored on the category -- the background derives it from
+    // the sites in the category, so a new limit starts at today's real usage
     const updated: CategoriesMap = {
       ...current,
-      [category]: { name: category, timeLimit: limitSeconds, timeUsage: existingUsage },
+      [category]: { name: category, timeLimit: limitSeconds, timeUsage: 0 },
     };
     await saveCategories(updated);
-    setCategories(updated);
+    // re-request so the derived usage (seeded from existing site usage) shows
+    const payload = await requestUsage();
+    setCategories(payload.categories);
   }
 
   // category === undefined removes the override; null = explicitly uncategorized
@@ -94,6 +96,9 @@ export default function App() {
     }
     await saveSiteCategories(updated);
     setSiteCategories(updated);
+    // reassignment moves that site's time between categories -- refresh
+    const payload = await requestUsage();
+    setCategories(payload.categories);
   }
 
   // deletes all saved limits, category budgets, and overrides

@@ -33,7 +33,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     checkAndReset().then(async () => {
       const limits = await loadLimitsList();
       const cats = await loadCategories();
-      sendResponse({ data: { sites: buildUsageMap(limits), categories: cats } });
+      const resolve = await makeHostResolver();
+      sendResponse({
+        data: {
+          sites: buildUsageMap(limits),
+          categories: buildCategoriesWithUsage(limits, cats, resolve)
+        }
+      });
     }).catch((err) => {
       console.error("getScreenTime error", err);
       sendResponse({ data: { sites: {}, categories: {} } });
@@ -90,19 +96,46 @@ async function loadSiteCategories() {
   return result.siteCategories || {};
 }
 
-// which category a hostname counts toward: user override first, then the
-// bundled list (suffix match so m.youtube.com matches youtube.com)
-async function getCategoryForHost(host) {
-  if (!host) return null;
-  const bare = host.replace(/^www\./, "");
+// build a synchronous host->category resolver (loads overrides + bundled
+// list once, so it can be reused across a whole limits map)
+async function makeHostResolver() {
   const overrides = await loadSiteCategories();
-  if (bare in overrides) return overrides[bare];
-  if (host in overrides) return overrides[host];
   const bundled = await loadBundledCategories();
-  for (const [domain, category] of Object.entries(bundled.domains || {})) {
-    if (bare === domain || bare.endsWith("." + domain)) return category;
+  // user override first (null = explicitly uncategorized), then the bundled
+  // list (suffix match so m.youtube.com matches youtube.com)
+  return (host) => {
+    if (!host) return null;
+    const bare = normalizeHost(host);
+    if (bare in overrides) return overrides[bare];
+    for (const [domain, category] of Object.entries(bundled.domains || {})) {
+      if (bare === domain || bare.endsWith("." + domain)) return category;
+    }
+    return null;
+  };
+}
+
+async function getCategoryForHost(host) {
+  return (await makeHostResolver())(host);
+}
+
+// category usage is DERIVED, not stored: a category's usage is the sum of
+// today's usage of every site currently in it. that way a newly created
+// category limit starts at what's already been used today, and reassigning
+// a site moves its time along with it.
+function buildCategoriesWithUsage(limsObj, catsObj, resolve) {
+  const out = {};
+  for (const [id, c] of Object.entries(catsObj || {})) {
+    if (!c || typeof c !== "object") continue;
+    out[id] = { name: c.name, timeLimit: Number(c.timeLimit) || 0, timeUsage: 0 };
   }
-  return null;
+  for (const [host, entry] of Object.entries(limsObj || {})) {
+    if (!entry || typeof entry !== "object") continue;
+    const cat = resolve(host);
+    if (cat && out[cat]) {
+      out[cat].timeUsage += Number(entry.timeUsage) || 0;
+    }
+  }
+  return out;
 }
 
 // one-time storage migrations
@@ -151,11 +184,15 @@ async function migrate() {
 }
 
 // push current usage (sites + categories) to the popup, if it's open
-async function notifyPopup(limsObj, catsObj) {
-  const cats = catsObj !== undefined ? catsObj : await loadCategories();
+async function notifyPopup(limsObj) {
+  const cats = await loadCategories();
+  const resolve = await makeHostResolver();
   chrome.runtime.sendMessage({
     action: "list-of-screen-time",
-    data: { sites: buildUsageMap(limsObj), categories: cats }
+    data: {
+      sites: buildUsageMap(limsObj),
+      categories: buildCategoriesWithUsage(limsObj, cats, resolve)
+    }
   }).catch(() => {}); // popup may not be open
 }
 
@@ -208,14 +245,9 @@ async function checkAndReset() {
       lims[host].timeUsage = 0;
     }
   }
-  // category budgets get a fresh day too
-  const cats = await loadCategories();
-  for (const id of Object.keys(cats)) {
-    if (cats[id] && typeof cats[id] === "object") {
-      cats[id].timeUsage = 0;
-    }
-  }
-  await chrome.storage.local.set({ "limits": lims, "categories": cats, "lastResetDate": today });
+  // (category usage is derived from site usage, so zeroing the sites gives
+  // every category budget a fresh day too)
+  await chrome.storage.local.set({ "limits": lims, "lastResetDate": today });
 
   // fresh day: cancel any pending block timer and restart the current session
   // so a blocked site becomes usable immediately
@@ -227,7 +259,7 @@ async function checkAndReset() {
   if (startTime != null) startTime = Date.now();
 
   // tell popup to reset the list of usage
-  await notifyPopup(lims, cats);
+  await notifyPopup(lims);
   return true;
 }
 
@@ -336,22 +368,16 @@ async function updateTime(website, time) {
     };
   }
 
-  // increment the usage
+  // increment the usage (category budgets pick this up automatically since
+  // their usage is derived from site usage)
   const prev = Number(lims[website].timeUsage) || 0;
   lims[website].timeUsage = prev + Number(time || 0);
 
-  // the same seconds also count toward the site's category budget, if one is set
-  const cats = await loadCategories();
-  const cat = await getCategoryForHost(website);
-  if (cat && cats[cat]) {
-    cats[cat].timeUsage = (Number(cats[cat].timeUsage) || 0) + Number(time || 0);
-  }
-
-  await chrome.storage.local.set({ "limits": lims, "categories": cats });
+  await saveLimitsList(lims);
   console.log("upadting time spent for", website);
 
   // display the list
-  await notifyPopup(lims, cats);
+  await notifyPopup(lims);
 }
 
 // saves time spent on the website when tab switched
@@ -409,12 +435,14 @@ async function handleWebsiteChange() {
 
   let catLimit = 0;
   let catUsage = 0;
-  const cat = await getCategoryForHost(currentTabHostname);
+  const resolve = await makeHostResolver();
+  const cat = resolve(currentTabHostname);
   if (cat) {
     const cats = await loadCategories();
     if (cats[cat]) {
-      catLimit = Number(cats[cat].timeLimit || 0);
-      catUsage = Number(cats[cat].timeUsage || 0);
+      const withUsage = buildCategoriesWithUsage(lims, cats, resolve);
+      catLimit = Number(withUsage[cat].timeLimit || 0);
+      catUsage = Number(withUsage[cat].timeUsage || 0);
     }
   }
 
@@ -469,30 +497,18 @@ async function stopTimer() {
   }
   lims[currentTabHostname].timeUsage = (Number(lims[currentTabHostname].timeUsage) || 0) + timeSpent;
 
-  // cap site usage at its own limit only -- category usage is tracked
-  // separately below and must never be capped by the site's limit
+  // cap site usage at its own limit so the display reads usage == limit
   const limit = Number(lims[currentTabHostname].timeLimit) || 0;
   if (limit > 0 && lims[currentTabHostname].timeUsage > limit) {
     lims[currentTabHostname].timeUsage = limit;
   }
 
-  // the final stretch of time also counts toward the category budget
-  const cats = await loadCategories();
-  const cat = await getCategoryForHost(currentTabHostname);
-  if (cat && cats[cat]) {
-    cats[cat].timeUsage = (Number(cats[cat].timeUsage) || 0) + timeSpent;
-    const catLimit = Number(cats[cat].timeLimit) || 0;
-    if (catLimit > 0 && cats[cat].timeUsage > catLimit) {
-      cats[cat].timeUsage = catLimit;
-    }
-  }
-
-  await chrome.storage.local.set({ "limits": lims, "categories": cats });
+  await saveLimitsList(lims);
   clearTimeout(timeoutId);
   timeoutId = null;
 
   // notify popup
-  await notifyPopup(lims, cats);
+  await notifyPopup(lims);
 }
 
 // inject content script to block access to the site
