@@ -17,7 +17,7 @@ chrome.idle.onStateChanged.addListener(async state => {
     paused = true;
     if (startTime && currentTab) {
       const elapsed = (Date.now() - startTime) / 1000;
-      await updateTime(getTabDomain(currentTab), elapsed);
+      await updateTime(getTabTarget(currentTab, lims), elapsed);
       startTime = null;
     }
   } else if (state === "active") {
@@ -140,7 +140,9 @@ function buildCategoriesWithUsage(limsObj, catsObj, resolve) {
   }
   for (const [host, entry] of Object.entries(limsObj || {})) {
     if (!entry || typeof entry !== "object") continue;
-    const cat = resolve(host);
+    // a path-scoped entry ("youtube.com/shorts") still belongs to its host's
+    // category, so resolve the host part of the key
+    const cat = resolve(keyHost(host));
     if (cat && out[cat]) {
       out[cat].timeUsage += Number(entry.timeUsage) || 0;
     }
@@ -200,10 +202,11 @@ function hasOwnRule(entry) {
   return !!(entry && typeof entry === "object" && (Number(entry.timeLimit) > 0 || entry.blocked));
 }
 
-// remaining budget for a host, in milliseconds:
+// remaining budget for a limit key (a bare host or a "host/path" target), in ms:
 //   -Infinity  -> outright blocked ("block this website completely")
 //   <= 0       -> the governing limit (own limit, else category) is exhausted
 //   Infinity   -> no limits apply
+// the category fallback resolves from the host part of the key.
 async function getTimeLeftForHost(host, limsObj) {
   const entry = limsObj ? limsObj[host] : null;
   if (entry && entry.blocked) return -Infinity;
@@ -214,7 +217,7 @@ async function getTimeLeftForHost(host, limsObj) {
   }
 
   const resolve = await makeHostResolver();
-  const cat = resolve(host);
+  const cat = resolve(keyHost(host));
   if (cat) {
     const cats = await loadCategories();
     if (cats[cat]) {
@@ -340,7 +343,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (!paused && startTime && currentTab) {
       const elapsed = (Date.now() - startTime) / 1000;
       startTime = Date.now();
-      await updateTime(getTabDomain(currentTab), elapsed);
+      await updateTime(getTabTarget(currentTab, lims), elapsed);
     }
     await checkAndReset();
     // re-arm the one-shot alarm for the next local midnight
@@ -363,21 +366,76 @@ function normalizeHost(host) {
   return host.toLowerCase().replace(/^www\./, "");
 }
 
-function getTabDomain(tab) {
-  // if tab isn't null, return domain name of tab
-  if (tab && tab.url) {
-    try {
-      let urlObj = new URL(tab.url);
-      console.log("nothing wrong with url", tab.url);
-      return normalizeHost(urlObj.hostname);
-    }
-    catch (e) {
-      console.log("something wrong with url", tab.url);
-      console.log("error ", e);
+// canonical path of a URL for matching: lowercase, no trailing slash, no query
+// or #fragment. "" for the root ("/"). Must mirror the popup's
+// normalizeWebsiteTarget so typed keys line up with tracked URLs.
+function normalizePath(pathname) {
+  if (!pathname) return "";
+  return pathname.toLowerCase().replace(/\/+$/, "");
+}
+
+// split a limit key into { host, path }; path is "" (bare-host rule) or a
+// leading-slash path ("/shorts", "/shorts/abc")
+function keyParts(key) {
+  const s = key || "";
+  const i = s.indexOf("/");
+  if (i === -1) return { host: s, path: "" };
+  return { host: s.slice(0, i), path: s.slice(i) };
+}
+
+// the bare host part of a limit key (used for category resolution, which is
+// always host-based)
+function keyHost(key) {
+  return keyParts(key).host;
+}
+
+// does a limit key govern this host+path? a bare-host key ("youtube.com")
+// governs everything on the host; a path key ("youtube.com/shorts") governs
+// only that path and everything under it -- with a segment boundary so
+// "/shorts" matches "/shorts" and "/shorts/abc" but NOT "/shortstories"
+function keyMatchesUrl(key, host, path) {
+  const kp = keyParts(key);
+  if (kp.host !== host) return false;
+  if (kp.path === "") return true;
+  return path === kp.path || path.startsWith(kp.path + "/");
+}
+
+// the limit key that governs a URL: the MOST SPECIFIC matching key (longest
+// path) among the existing limits, so a "youtube.com/shorts" rule beats a
+// "youtube.com" rule on shorts URLs. if no rule matches, fall back to the bare
+// host -- unlimited sites are still tracked under their host, exactly as before
+function resolveTargetKey(host, path, keys) {
+  let best = null;
+  let bestLen = -1;
+  for (const key of keys) {
+    if (keyMatchesUrl(key, host, path)) {
+      const len = keyParts(key).path.length;
+      if (len > bestLen) {
+        best = key;
+        bestLen = len;
+      }
     }
   }
-  else {
+  return best !== null ? best : host;
+}
+
+// the limit key for a tab's current URL: a bare host, or "host/path" when a
+// path rule covers it. Replaces the old getTabDomain for all limit/tracking
+// purposes, so time can be attributed to (and blocking scoped to) a specific
+// section of a site instead of the whole host.
+function getTabTarget(tab, limsObj) {
+  if (!(tab && tab.url)) {
     console.log("tab was null");
+    return undefined;
+  }
+  try {
+    const urlObj = new URL(tab.url);
+    const host = normalizeHost(urlObj.hostname);
+    const path = normalizePath(urlObj.pathname);
+    return resolveTargetKey(host, path, Object.keys(limsObj || {}));
+  } catch (e) {
+    console.log("something wrong with url", tab.url, e);
+    return undefined;
   }
 }
 
@@ -451,8 +509,8 @@ async function handleWebsiteChange() {
   lims = await loadLimitsList();
   let oldTab = currentTab;
   currentTab = await getCurrentTab();
-  let currentTabHostname = getTabDomain(currentTab);
-  let oldTabHostname = getTabDomain(oldTab);
+  let currentTabHostname = getTabTarget(currentTab, lims);
+  let oldTabHostname = getTabTarget(oldTab, lims);
   if (oldTab) {
     console.log("(updated) Tab changed. Old:", oldTabHostname, "New:", currentTabHostname);
   }
@@ -501,8 +559,8 @@ async function handleWebsiteChange() {
 async function timeout(tab) {
   // the limit may have been removed or raised since this timer was armed
   // (e.g. the user hit Reset Limits) -- recompute before blocking
-  const host = getTabDomain(tab);
   lims = await loadLimitsList();
+  const host = getTabTarget(tab, lims);
   let timeLeft = await getTimeLeftForHost(host, lims);
 
   // include the current session's not-yet-flushed seconds (no-op for the
@@ -534,7 +592,8 @@ async function timeout(tab) {
 // if timeout() called, stop recording time, update screenTime with screenTime = timeLimit (which should == timeSpent)
 async function stopTimer() {
   console.log("received stop-timer");
-  let currentTabHostname = getTabDomain(currentTab);
+  lims = await loadLimitsList();
+  let currentTabHostname = getTabTarget(currentTab, lims);
   if (!currentTabHostname) return;
 
   // startTime can already be null if the session was stopped by a racing
@@ -545,7 +604,6 @@ async function stopTimer() {
   // idk if i need this line but just to make sure it doesn't try to update again once tab changes
   startTime = null;
 
-  lims = await loadLimitsList();
   if (!lims[currentTabHostname] || typeof lims[currentTabHostname] !== "object") {
     lims[currentTabHostname] = {
       websiteName: currentTabHostname,
@@ -572,7 +630,8 @@ async function stopTimer() {
 
 // inject content script to block access to the site
 async function blockSite(tab) {
-  const host = getTabDomain(tab);
+  const limsNow = await loadLimitsList();
+  const host = getTabTarget(tab, limsNow);
   console.log("website blocked on ", host);
   // inject content script (await so its countdown entry point exists before
   // we call it below). injectImmediately makes it run right at navigation
@@ -594,14 +653,13 @@ async function blockSite(tab) {
   // block page (it navigates unless the user cancels). individual rules
   // override category rules: a site with its own limit/block uses only its
   // own redirect; a site governed by its category uses the category's.
-  const limsNow = await loadLimitsList();
   const entry = limsNow[host];
   let redirect = "";
   if (hasOwnRule(entry)) {
     redirect = entry.redirect ? String(entry.redirect).trim() : "";
   } else {
     const resolve = await makeHostResolver();
-    const cat = resolve(host);
+    const cat = resolve(keyHost(host));
     if (cat) {
       const cats = await loadCategories();
       if (cats[cat] && cats[cat].redirect) {
@@ -618,13 +676,18 @@ async function blockSite(tab) {
     // itself out of time right now (outright blocked, over its own limit,
     // or over its category budget) -- it would just get blocked on arrival
     let targetHost = null;
+    let targetKey = null;
     try {
-      targetHost = normalizeHost(new URL(url).hostname);
+      const tu = new URL(url);
+      targetHost = normalizeHost(tu.hostname);
+      // resolve to the rule that actually governs the redirect URL, so a
+      // path-scoped block/limit on the target is caught too
+      targetKey = resolveTargetKey(targetHost, normalizePath(tu.pathname), Object.keys(limsNow));
     } catch (e) {
       console.log("invalid redirect url", url);
     }
     if (!targetHost) return;
-    const targetTimeLeft = await getTimeLeftForHost(targetHost, limsNow);
+    const targetTimeLeft = await getTimeLeftForHost(targetKey, limsNow);
     if (targetTimeLeft <= 0) {
       console.log("redirect target", targetHost, "is also blocked -- skipping countdown");
       // tell the user why there's no redirect happening
@@ -668,7 +731,7 @@ chrome.runtime.onConnect.addListener((port) => {
     // copy so the pending session seconds never leak into storage
     const display = JSON.parse(JSON.stringify(lims || {}));
     if (!paused && startTime && currentTab) {
-      const host = getTabDomain(currentTab);
+      const host = getTabTarget(currentTab, lims);
       if (host) {
         if (!display[host] || typeof display[host] !== "object") {
           display[host] = { websiteName: host, timeLimit: 0, timeUsage: 0, redirect: "" };
@@ -713,6 +776,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (paused || !startTime || !currentTab) return;
     const elapsed = (Date.now() - startTime) / 1000;
     startTime = Date.now();
-    await updateTime(getTabDomain(currentTab), elapsed);
+    await updateTime(getTabTarget(currentTab, lims), elapsed);
   }
 });

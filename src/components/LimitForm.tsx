@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { normalizeWebsiteInput } from "../shared/normalize";
+import { normalizeWebsiteInput, normalizeWebsiteTarget, hostOfKey } from "../shared/normalize";
 import { MIN_LIMIT_SECONDS, MAX_LIMIT_SECONDS } from "../shared/types";
 import type { CategoriesMap, LimitsMap, SiteCategoriesMap } from "../shared/types";
 import type { BundledCategories } from "../shared/categories";
@@ -103,9 +103,10 @@ export default function LimitForm({
     }
 
     // clean up whatever was typed (full URL, www., mixed case) into the
-    // same canonical hostname the background tracks time under
-    const host = normalizeWebsiteInput(website);
-    if (!host) {
+    // same canonical key the background tracks time under -- a bare host, or
+    // host + path when the user wants to limit just a section (youtube.com/shorts)
+    const target = normalizeWebsiteTarget(website);
+    if (!target) {
       setError("Please enter a valid website, e.g. instagram.com");
       return;
     }
@@ -131,7 +132,7 @@ export default function LimitForm({
         setError("The redirect isn't a valid website, e.g. youtube.com");
         return;
       }
-      if (targetHost === host) {
+      if (targetHost === hostOfKey(target)) {
         setError("The redirect can't point back to the same website");
         return;
       }
@@ -159,7 +160,7 @@ export default function LimitForm({
       }
     }
 
-    onSetLimit(host, blockCompletely ? 0 : timeLim, redirect, blockCompletely);
+    onSetLimit(target, blockCompletely ? 0 : timeLim, redirect, blockCompletely);
     closeForm();
   }
 
@@ -188,6 +189,13 @@ export default function LimitForm({
               }}
             />
           </p>
+          {!editing && (
+            <p className="form-hint">
+              Tip: add a path to limit just one section of a site, e.g.{" "}
+              youtube.com/shorts (covers /shorts and everything under it, leaving
+              the rest of youtube.com alone).
+            </p>
+          )}
           <p>Time Limit:</p>
           <p>
             <label htmlFor="timelimh">Hours (0 if none): </label>
