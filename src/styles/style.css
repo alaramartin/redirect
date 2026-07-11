@@ -2,327 +2,346 @@
    with these values manually, since it's a static file outside the Vite/
    React build and can't share this stylesheet. */
 :root {
-  --color-bg: #eef2f4;
-  --color-panel: #f8fafb;
-  --color-border: #d7e0e4;
-  --color-text: #33424a;
-  --color-text-muted: #6b7c84;
-  --color-accent: #5b8ba3;
-  --color-accent-hover: #4d7890;
-  --color-track: #dde5e8;
-  --color-blocked: #97a3a9;
-  --color-error: #8a4b4b;
-  --color-warning: #8a7440;
-  --radius: 8px;
-  --radius-sm: 6px;
+    --color-bg: #eef2f4;
+    --color-panel: #f8fafb;
+    --color-border: #d7e0e4;
+    --color-text: #33424a;
+    --color-text-muted: #6b7c84;
+    --color-accent: #5b8ba3;
+    --color-accent-hover: #4d7890;
+    --color-track: #dde5e8;
+    --color-blocked: #97a3a9;
+    --color-error: #8a4b4b;
+    --color-warning: #8a7440;
+    --radius: 8px;
+    --radius-sm: 6px;
 }
 
 * {
-  box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px;
+    box-sizing: border-box;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
 }
 
 body {
-  min-width: 560px;
-  max-width: 100%;
-  min-height: 100px;
-  max-height: 100%;
-  margin: 0;
-  background-color: var(--color-bg);
-  color: var(--color-text);
+    /* an explicit width, not just min-width -- a Chrome extension popup
+       auto-sizes to fit its content's natural extent, and min-width is only
+       a floor that wider content could still exceed. the usage bar graph
+       measures this width itself and lays its bars out to always fit it
+       (see UsageBarGraph.tsx), so this is the one true source of truth for
+       how wide the popup actually is. */
+    width: 440px;
+    max-width: 100%;
+    min-height: 100px;
+    max-height: 100%;
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-text);
 }
 
 header {
-  position: sticky;
-  top: 0;
-  z-index: 999;
-  background: var(--color-panel);
-  border-bottom: 1px solid var(--color-border);
-  padding: 14px 16px;
-  font-size: 1.15em;
-  font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    background: var(--color-panel);
+    border-bottom: 1px solid var(--color-border);
+    padding: 14px 16px;
+    font-size: 1.15em;
+    font-weight: 600;
 }
 
 .button-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 10px;
 }
 
 .button-row > .panel {
-  flex-basis: 100%;
-  order: 2;
+    flex-basis: 100%;
+    order: 2;
 }
 
 .option-button {
-  order: 1;
-  padding: 6px 12px;
-  font-size: 0.85em;
-  white-space: nowrap;
+    order: 1;
+    padding: 6px 12px;
+    font-size: 0.85em;
+    white-space: nowrap;
 }
 
 .panel {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  margin: 6px 10px;
-  background: var(--color-panel);
-  padding: 12px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    margin: 6px 10px;
+    background: var(--color-panel);
+    padding: 12px 16px;
 }
 
 .panel-title {
-  font-weight: 600;
-  margin: 0 0 8px;
+    font-weight: 600;
+    margin: 0 0 8px;
 }
 
 #add-limit-form,
 #assign-form,
 #focus-form {
-  scroll-margin-top: 60px;
+    scroll-margin-top: 60px;
 }
 
 .form-cancel {
-  margin-top: 10px;
+    margin-top: 10px;
 }
 
 #reset {
-  margin-top: 10px;
+    margin-top: 10px;
 }
 
 button,
 input[type="submit"] {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-  color: var(--color-text);
-  padding: 5px 12px;
-  cursor: pointer;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--color-text);
+    padding: 5px 12px;
+    cursor: pointer;
 }
 
 button:hover,
 input[type="submit"]:hover {
-  background: var(--color-track);
+    background: var(--color-track);
 }
 
 input[type="submit"] {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: #fff;
-  margin-top: 6px;
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+    margin-top: 6px;
 }
 
 input[type="submit"]:hover {
-  background: var(--color-accent-hover);
+    background: var(--color-accent-hover);
 }
 
 input[type="text"],
 input[type="number"],
 select {
-  padding: 5px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-  color: var(--color-text);
+    padding: 5px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--color-text);
 }
 
 label {
-  color: var(--color-text-muted);
+    color: var(--color-text-muted);
 }
 
 li {
-  list-style-type: none;
-  margin: 8px 0 0;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg);
+    list-style-type: none;
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
 }
 
 ul {
-  padding-left: 0;
-  margin: 0;
+    padding-left: 0;
+    margin: 0;
 }
 
 /* small pencil/delete buttons next to each limit entry */
 .limit-row-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .edit-limit,
 .delete-limit {
-  padding: 1px 8px;
-  font-size: 0.85em;
-  color: var(--color-text-muted);
+    padding: 1px 8px;
+    font-size: 0.85em;
+    color: var(--color-text-muted);
 }
 
 .delete-limit:hover {
-  color: var(--color-error);
-  border-color: var(--color-error);
+    color: var(--color-error);
+    border-color: var(--color-error);
 }
 
 .limit-row-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .limit-row-label {
-  font-weight: 500;
+    font-weight: 500;
 }
 
 .limit-row-detail {
-  margin-top: 8px;
-  font-size: 0.85em;
-  color: var(--color-text-muted);
+    margin-top: 8px;
+    font-size: 0.85em;
+    color: var(--color-text-muted);
 }
 
 .form-error {
-  color: var(--color-error);
-  font-weight: 500;
+    color: var(--color-error);
+    font-weight: 500;
 }
 
 .form-warning {
-  color: var(--color-warning);
-  font-weight: 500;
+    color: var(--color-warning);
+    font-weight: 500;
 }
 
 .form-hint {
-  color: var(--color-text-muted);
-  font-size: 0.85em;
+    color: var(--color-text-muted);
+    font-size: 0.85em;
 }
 
 /* progress bar: fills to 100% at the full time limit */
 .progress-track {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--color-track);
-  overflow: hidden;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-track);
+    overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%;
-  border-radius: 4px;
-  background: var(--color-accent);
+    height: 100%;
+    border-radius: 4px;
+    background: var(--color-accent);
 }
 
 .progress-fill.over-limit {
-  background: var(--color-blocked);
+    background: var(--color-blocked);
 }
 
 .progress-track.blocked {
-  background: var(--color-blocked);
+    background: var(--color-blocked);
 }
 
-/* usage bar graph */
+/* usage bar graph -- always fits its measured width with no horizontal
+   scrolling: UsageBarGraph.tsx measures this container and decides how many
+   bars get their own column vs. fold into "Other" and how much gap to give
+   them, so nothing here needs overflow-x. */
 .bar-graph {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 150px;
-  /* generous top padding: overflow-x:auto forces overflow-y to auto too, so
-     the tallest bar's tooltip (which pops up above it) needs clear room
-     here or it gets clipped by the scroll container -- sized for up to a
-     two-line wrapped tooltip, since long labels wrap rather than stretch
-     wide. side padding gives an edge bar's tooltip room too, and bottom
-     padding keeps the labels clear of the border below them. */
-  padding: 58px 40px 10px;
-  margin-bottom: 10px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--color-border);
+    /* top padding keeps a wrapped two-line tooltip on the tallest bar from
+     visually overlapping the panel title above it; side padding gives an
+     edge bar's tooltip room before it'd bleed past the panel's border. */
+    padding: 58px 16px 0;
+    margin-bottom: 10px;
+}
+
+/* bars and labels are two separate rows sharing identical column sizing
+   (.bar-col below) so they always line up. the x-axis line is this row's
+   own border, so it spans the full content width as one continuous line --
+   putting it on each column individually would break into segments with
+   gaps wherever columns are spread apart (few bars filling the row). gap is
+   set inline by UsageBarGraph.tsx based on how many bars there are. */
+.bar-graph-bars {
+    display: flex;
+    justify-content: center;
+    height: 90px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.bar-graph-labels {
+    display: flex;
+    justify-content: center;
+    margin-top: 6px;
 }
 
 .bar-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  height: 100%;
-  /* grow to fill the row when there are few bars; never shrink narrower
-     than this, so a crowded row scrolls instead of squeezing unreadable */
-  flex: 1 0 54px;
-  min-width: 54px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    width: 36px;
+    flex-shrink: 0;
 }
 
 .bar {
-  position: relative;
-  width: 18px;
-  min-height: 2px;
-  background: var(--color-accent);
-  border-radius: 3px 3px 0 0;
+    position: relative;
+    width: 18px;
+    min-height: 2px;
+    background: var(--color-accent);
+    border-radius: 3px 3px 0 0;
 }
 
 .bar-tooltip {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-bottom: 6px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--color-text);
-  color: #fff;
-  font-size: 0.75em;
-  width: 140px;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-  z-index: 10;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 6px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--color-text);
+    color: #fff;
+    font-size: 0.75em;
+    width: 140px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    z-index: 10;
 }
 
 /* the first/last column's tooltip would otherwise center past the edge of
    the (horizontally scrollable) graph and get clipped -- anchor it to the
    bar's own edge instead of centering it */
 .bar-col:first-child .bar-tooltip {
-  left: 0;
-  transform: none;
-  text-align: left;
+    left: 0;
+    transform: none;
+    text-align: left;
 }
 
 .bar-col:last-child .bar-tooltip {
-  left: auto;
-  right: 0;
-  transform: none;
-  text-align: right;
+    left: auto;
+    right: 0;
+    transform: none;
+    text-align: right;
 }
 
 .bar:hover .bar-tooltip {
-  opacity: 1;
+    opacity: 1;
 }
 
 .bar-label {
-  margin-top: 6px;
-  max-width: 54px;
-  font-size: 0.7em;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    /* identical fixed width to .bar-col so each label lines up under its bar */
+    width: 36px;
+    flex-shrink: 0;
+    font-size: 0.7em;
+    color: var(--color-text-muted);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* hour/minute/second duration dropdown row */
 .duration-select {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
 }
 
 .duration-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .duration-unit {
-  font-size: 0.85em;
-  color: var(--color-text-muted);
+    font-size: 0.85em;
+    color: var(--color-text-muted);
 }

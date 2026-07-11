@@ -235,6 +235,7 @@ export default function App() {
       <TimeLimitsSection
         limits={limits}
         categories={categories}
+        usage={usage}
         bundled={bundled}
         onEditSite={(host) => setEditTarget({ kind: "site", host })}
         onEditCategory={(category) => setEditTarget({ kind: "category", category })}
@@ -244,13 +245,7 @@ export default function App() {
         focusLocked={focusLocked}
       />
       <CategoryAssignmentsList siteCategories={siteCategories} bundled={bundled} />
-      <UsageSection
-        usage={usage}
-        limits={limits}
-        categories={categories}
-        siteCategories={siteCategories}
-        bundled={bundled}
-      />
+      <UsageSection usage={usage} bundled={bundled} />
     </>
   );
 }
