@@ -5,8 +5,13 @@ export interface SiteLimit {
   websiteName: string;
   timeLimit: number; // in seconds, 0 = no limit set
   timeUsage: number; // in seconds
-  redirect: string; // website URL to redirect to, if specified (currently unused by blocking)
+  redirect: string; // website URL to redirect to once blocked, if specified
+  blocked?: boolean; // outright blocked ("block this website completely"), independent of time
 }
+
+// bounds for user-entered time limits (site and category)
+export const MIN_LIMIT_SECONDS = 1;
+export const MAX_LIMIT_SECONDS = 24 * 60 * 60;
 
 export type LimitsMap = Record<string, SiteLimit>;
 
@@ -31,6 +36,7 @@ export interface CategoryLimit {
   name: string;
   timeLimit: number; // in seconds
   timeUsage: number; // in seconds, combined across all sites in the category
+  redirect?: string; // website to redirect to when the category budget blocks a site
 }
 
 export type CategoriesMap = Record<CategoryId, CategoryLimit>;

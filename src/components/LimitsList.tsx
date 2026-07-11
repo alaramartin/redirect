@@ -6,10 +6,11 @@ interface LimitsListProps {
   onReset: () => void;
 }
 
-// the "Time Limits Set" panel: only entries with an actual limit are shown
+// the "Time Limits Set" panel: entries with an actual limit or an outright block
 export default function LimitsList({ limits, onReset }: LimitsListProps) {
   const entries = Object.entries(limits).filter(
-    ([, value]) => value && typeof value === "object" && Number(value.timeLimit) > 0
+    ([, value]) =>
+      value && typeof value === "object" && (Number(value.timeLimit) > 0 || value.blocked)
   );
 
   return (
@@ -18,7 +19,10 @@ export default function LimitsList({ limits, onReset }: LimitsListProps) {
       <ul id="list-of-limits">
         {entries.map(([host, value]) => (
           <li key={host}>
-            Website: {host}, time limit: {formatTime(Number(value.timeLimit))}
+            Website: {host},{" "}
+            {value.blocked
+              ? "completely blocked"
+              : `time limit: ${formatTime(Number(value.timeLimit))}`}
             {value.redirect ? `, redirect: ${value.redirect}` : ""}
           </li>
         ))}

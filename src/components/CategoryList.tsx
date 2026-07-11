@@ -24,6 +24,7 @@ export default function CategoryList({ categories, siteCategories }: CategoryLis
           <li key={id}>
             Category: {id}, time limit: {formatTime(Number(value.timeLimit))}, used:{" "}
             {formatTime(Number(value.timeUsage))}
+            {value.redirect ? `, redirect: ${value.redirect}` : ""}
           </li>
         ))}
       </ul>

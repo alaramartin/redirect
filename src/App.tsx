@@ -23,17 +23,21 @@ import {
   saveSiteCategories,
   requestUsage,
 } from "./shared/storage";
+import type { BundledCategories } from "./shared/categories";
+import { EMPTY_BUNDLED, loadBundledCategories } from "./shared/categories";
 
 export default function App() {
   const [limits, setLimits] = useState<LimitsMap>({});
   const [usage, setUsage] = useState<UsageMap>({});
   const [categories, setCategories] = useState<CategoriesMap>({});
   const [siteCategories, setSiteCategories] = useState<SiteCategoriesMap>({});
+  const [bundled, setBundled] = useState<BundledCategories>(EMPTY_BUNDLED);
 
   useEffect(() => {
     // initial load: limits/overrides from storage, usage from the background
     loadLimits().then(setLimits);
     loadSiteCategories().then(setSiteCategories);
+    loadBundledCategories().then(setBundled);
     requestUsage().then((payload) => {
       setUsage(payload.sites);
       setCategories(payload.categories);
@@ -65,7 +69,12 @@ export default function App() {
     };
   }, []);
 
-  async function handleSetLimit(website: string, limitSeconds: number, redirect: string) {
+  async function handleSetLimit(
+    website: string,
+    limitSeconds: number,
+    redirect: string,
+    blocked: boolean
+  ) {
     const current = await loadLimits();
     // keep any usage already tracked for this site today
     const existingUsage = current[website]?.timeUsage ?? 0;
@@ -74,19 +83,24 @@ export default function App() {
       timeLimit: limitSeconds,
       timeUsage: existingUsage,
       redirect: redirect || "",
+      blocked,
     };
     const updated = { ...current, [website]: entry };
     await saveLimits(updated);
     setLimits(updated);
   }
 
-  async function handleSetCategoryLimit(category: string, limitSeconds: number) {
+  async function handleSetCategoryLimit(
+    category: string,
+    limitSeconds: number,
+    redirect: string
+  ) {
     const current = await loadCategories();
     // usage isn't stored on the category -- the background derives it from
     // the sites in the category, so a new limit starts at today's real usage
     const updated: CategoriesMap = {
       ...current,
-      [category]: { name: category, timeLimit: limitSeconds, timeUsage: 0 },
+      [category]: { name: category, timeLimit: limitSeconds, timeUsage: 0, redirect },
     };
     await saveCategories(updated);
     // re-request so the derived usage (seeded from existing site usage) shows
@@ -118,7 +132,7 @@ export default function App() {
     const current = await loadLimits();
     const cleared: LimitsMap = {};
     for (const [host, entry] of Object.entries(current)) {
-      cleared[host] = { ...entry, timeLimit: 0, redirect: "" };
+      cleared[host] = { ...entry, timeLimit: 0, redirect: "", blocked: false };
     }
     await saveLimits(cleared);
     await saveCategories({});
@@ -129,8 +143,20 @@ export default function App() {
   return (
     <>
       <Header />
-      <LimitForm onSetLimit={handleSetLimit} />
-      <CategoryForm onSetCategoryLimit={handleSetCategoryLimit} />
+      <LimitForm
+        limits={limits}
+        categories={categories}
+        siteCategories={siteCategories}
+        bundled={bundled}
+        onSetLimit={handleSetLimit}
+      />
+      <CategoryForm
+        limits={limits}
+        categories={categories}
+        siteCategories={siteCategories}
+        bundled={bundled}
+        onSetCategoryLimit={handleSetCategoryLimit}
+      />
       <AssignSiteForm onAssignSite={handleAssignSite} />
       <LimitsList limits={limits} onReset={handleReset} />
       <CategoryList categories={categories} siteCategories={siteCategories} />

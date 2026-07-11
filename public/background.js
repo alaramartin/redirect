@@ -119,14 +119,21 @@ async function getCategoryForHost(host) {
 }
 
 // category usage is DERIVED, not stored: a category's usage is the sum of
-// today's usage of every site currently in it. that way a newly created
-// category limit starts at what's already been used today, and reassigning
-// a site moves its time along with it.
+// today's usage of every site currently in it -- including sites with their
+// own individual limit (they eat the category budget too; they're just not
+// BLOCKED by it, see getTimeLeftForHost). that way a newly created category
+// limit starts at what's already been used today, and reassigning a site
+// moves its time along with it.
 function buildCategoriesWithUsage(limsObj, catsObj, resolve) {
   const out = {};
   for (const [id, c] of Object.entries(catsObj || {})) {
     if (!c || typeof c !== "object") continue;
-    out[id] = { name: c.name, timeLimit: Number(c.timeLimit) || 0, timeUsage: 0 };
+    out[id] = {
+      name: c.name,
+      timeLimit: Number(c.timeLimit) || 0,
+      timeUsage: 0,
+      redirect: c.redirect || ""
+    };
   }
   for (const [host, entry] of Object.entries(limsObj || {})) {
     if (!entry || typeof entry !== "object") continue;
@@ -181,6 +188,40 @@ async function migrate() {
       siteCategories: normalizedOverrides
     });
   }
+}
+
+// does this site have its own individual rule? individual rules override
+// category rules in ALL cases: such a site is governed only by its own
+// limit/redirect and is carved out of its category's budget entirely
+function hasOwnRule(entry) {
+  return !!(entry && typeof entry === "object" && (Number(entry.timeLimit) > 0 || entry.blocked));
+}
+
+// remaining budget for a host, in milliseconds:
+//   -Infinity  -> outright blocked ("block this website completely")
+//   <= 0       -> the governing limit (own limit, else category) is exhausted
+//   Infinity   -> no limits apply
+async function getTimeLeftForHost(host, limsObj) {
+  const entry = limsObj ? limsObj[host] : null;
+  if (entry && entry.blocked) return -Infinity;
+
+  // individual limit overrides the category: it alone governs this site
+  if (hasOwnRule(entry)) {
+    return 1000 * (Number(entry.timeLimit) - (Number(entry.timeUsage) || 0));
+  }
+
+  const resolve = await makeHostResolver();
+  const cat = resolve(host);
+  if (cat) {
+    const cats = await loadCategories();
+    if (cats[cat]) {
+      const withUsage = buildCategoriesWithUsage(limsObj, cats, resolve);
+      if (withUsage[cat].timeLimit > 0) {
+        return 1000 * (withUsage[cat].timeLimit - withUsage[cat].timeUsage);
+      }
+    }
+  }
+  return Infinity;
 }
 
 // push current usage (sites + categories) to the popup, if it's open
@@ -391,8 +432,11 @@ chrome.tabs.onActivated.addListener(async function(tabId, changeInfo, tab) {
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   console.log("onupdated");
 
-  // check if tab has finished loading/reloading
-  if (changeInfo.status === "complete") {
+  // changeInfo.url fires when the navigation commits -- before the page
+  // renders -- so an already-over-limit site gets blocked before it shows.
+  // "complete" is kept as a fallback (e.g. if the commit-time injection
+  // landed too early); the block overlay's guard makes re-blocking a no-op.
+  if (changeInfo.url || changeInfo.status === "complete") {
     console.log("changeInfo.url: ", changeInfo.url);
     handleWebsiteChange();
   }
@@ -428,28 +472,9 @@ async function handleWebsiteChange() {
   startTime = Date.now();
 
   // set a timeout timer -> call timeout() when the screen time limit runs out
-  // IF THERE IS A TIME LIMIT SET, either on the site itself or on its category
-  const siteEntry = lims[currentTabHostname];
-  const siteLimit = siteEntry ? Number(siteEntry.timeLimit || 0) : 0;
-  const siteUsage = siteEntry ? Number(siteEntry.timeUsage || 0) : 0;
-
-  let catLimit = 0;
-  let catUsage = 0;
-  const resolve = await makeHostResolver();
-  const cat = resolve(currentTabHostname);
-  if (cat) {
-    const cats = await loadCategories();
-    if (cats[cat]) {
-      const withUsage = buildCategoriesWithUsage(lims, cats, resolve);
-      catLimit = Number(withUsage[cat].timeLimit || 0);
-      catUsage = Number(withUsage[cat].timeUsage || 0);
-    }
-  }
-
-  // effective time left = smallest remaining budget among the limits that are set
-  let timeLeft = Infinity;
-  if (siteLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (siteLimit - siteUsage));
-  if (catLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (catLimit - catUsage));
+  // IF THERE IS A TIME LIMIT SET (site or category) or the site is outright
+  // blocked (getTimeLeftForHost returns -Infinity for those)
+  const timeLeft = await getTimeLeftForHost(currentTabHostname, lims);
 
   if (timeLeft !== Infinity) {
     console.log("time difference: ", timeLeft);
@@ -474,28 +499,14 @@ async function timeout(tab) {
   // (e.g. the user hit Reset Limits) -- recompute before blocking
   const host = getTabDomain(tab);
   lims = await loadLimitsList();
-  const entry = lims[host];
-  const siteLimit = entry ? Number(entry.timeLimit || 0) : 0;
-  const siteUsage = entry ? Number(entry.timeUsage || 0) : 0;
+  let timeLeft = await getTimeLeftForHost(host, lims);
 
-  let catLimit = 0;
-  let catUsage = 0;
-  const resolve = await makeHostResolver();
-  const cat = resolve(host);
-  if (cat) {
-    const cats = await loadCategories();
-    if (cats[cat]) {
-      const withUsage = buildCategoriesWithUsage(lims, cats, resolve);
-      catLimit = Number(withUsage[cat].timeLimit || 0);
-      catUsage = Number(withUsage[cat].timeUsage || 0);
-    }
+  // include the current session's not-yet-flushed seconds (no-op for the
+  // Infinity / -Infinity cases)
+  if (timeLeft !== Infinity) {
+    const pending = startTime ? (Date.now() - startTime) / 1000 : 0;
+    timeLeft -= 1000 * pending;
   }
-
-  // include the current session's not-yet-flushed seconds
-  const pending = startTime ? (Date.now() - startTime) / 1000 : 0;
-  let timeLeft = Infinity;
-  if (siteLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (siteLimit - (siteUsage + pending)));
-  if (catLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (catLimit - (catUsage + pending)));
 
   if (timeLeft === Infinity) {
     // no limit applies anymore: keep tracking, just drop the stale timer
@@ -553,11 +564,15 @@ async function stopTimer() {
 
 // inject content script to block access to the site
 async function blockSite(tab) {
-  console.log("website blocked on ", getTabDomain(tab));
-  // inject content script
-  chrome.scripting.executeScript({
+  const host = getTabDomain(tab);
+  console.log("website blocked on ", host);
+  // inject content script (await so its countdown entry point exists before
+  // we call it below). injectImmediately makes it run right at navigation
+  // commit instead of waiting for the page to finish loading
+  await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files: ["block.js"]
+    files: ["block.js"],
+    injectImmediately: true
   });
   // inject content script's css file
   await chrome.scripting.insertCSS({
@@ -566,6 +581,68 @@ async function blockSite(tab) {
       },
       files: ["block.css"]
     });
+
+  // if the user specified a redirect, start the 5-second countdown on the
+  // block page (it navigates unless the user cancels). individual rules
+  // override category rules: a site with its own limit/block uses only its
+  // own redirect; a site governed by its category uses the category's.
+  const limsNow = await loadLimitsList();
+  const entry = limsNow[host];
+  let redirect = "";
+  if (hasOwnRule(entry)) {
+    redirect = entry.redirect ? String(entry.redirect).trim() : "";
+  } else {
+    const resolve = await makeHostResolver();
+    const cat = resolve(host);
+    if (cat) {
+      const cats = await loadCategories();
+      if (cats[cat] && cats[cat].redirect) {
+        redirect = String(cats[cat].redirect).trim();
+      }
+    }
+  }
+  if (redirect) {
+    // users type bare domains like "youtube.com"; without a scheme the
+    // navigation would be relative to the blocked site
+    const url = redirect.includes("://") ? redirect : "https://" + redirect;
+
+    // runtime check: never start the countdown if the redirect target is
+    // itself out of time right now (outright blocked, over its own limit,
+    // or over its category budget) -- it would just get blocked on arrival
+    let targetHost = null;
+    try {
+      targetHost = normalizeHost(new URL(url).hostname);
+    } catch (e) {
+      console.log("invalid redirect url", url);
+    }
+    if (!targetHost) return;
+    const targetTimeLeft = await getTimeLeftForHost(targetHost, limsNow);
+    if (targetTimeLeft <= 0) {
+      console.log("redirect target", targetHost, "is also blocked -- skipping countdown");
+      // tell the user why there's no redirect happening
+      const reason = targetTimeLeft === -Infinity
+        ? "blocked completely"
+        : "also out of time right now";
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (text) => {
+          if (window.__showRedirectSkippedNotice) window.__showRedirectSkippedNotice(text);
+        },
+        args: [`Your configured redirect website, ${targetHost}, is ${reason}.`],
+        injectImmediately: true
+      });
+      return;
+    }
+
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (u) => {
+        if (window.__startRedirectCountdown) window.__startRedirectCountdown(u);
+      },
+      args: [url],
+      injectImmediately: true
+    });
+  }
 }
 
 // live ticker: while the popup is open it connects a port, and we push a

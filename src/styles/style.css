@@ -97,6 +97,11 @@ li {
     font-style: italic;
 }
 
+.form-warning {
+    color: #5a4a27;
+    font-style: italic;
+}
+
 #add-limit-option,
 #add-category-option,
 #assign-site-option {
