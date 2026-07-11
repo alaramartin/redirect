@@ -58,7 +58,10 @@ input[type="submit"]:active {
 }
 
 #limit-form,
+#category-form,
+#assign-form,
 #limits,
+#categories,
 #usage {
     border: solid #636d6e;
     border-width: 3px;
@@ -68,7 +71,9 @@ input[type="submit"]:active {
     padding: 2px 15px;
 }
 
-#limit-form {
+#limit-form,
+#category-form,
+#assign-form {
     display: none;
 }
 
@@ -87,7 +92,14 @@ li {
     text-align: center;
 }
 
-#add-limit-option {
+.form-error {
+    color: #5a2727;
+    font-style: italic;
+}
+
+#add-limit-option,
+#add-category-option,
+#assign-site-option {
     border: solid #636d6e;
     border-width: 3px;
     border-radius: 15px;

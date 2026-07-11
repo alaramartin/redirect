@@ -4,22 +4,11 @@ This is a Chrome extension that lets users set time limits and checks if the lim
 
 ## features
 
--   set a time limit for any website
--   track screen time usage
--   resets daily!
-
-## development
-
-The popup UI is built with React + TypeScript via Vite. The service worker
-(`public/background.js`) and blocking scripts stay plain JS and are copied
-into the build as-is.
-
-```
-npm install        # once
-npm run build      # type-checks and builds into dist/
-npm run dev        # rebuilds on every file change
-```
-
-Load the extension by pointing chrome://extensions "Load unpacked" at the
-**`dist/`** folder (not the repo root). After code changes, rebuild and hit
-the reload button on the extension card.
+- set a time limit for any website
+- track screen time usage
+- resets daily!
+- set a shared limit on a whole category (entertainment, social, news,
+  shopping, games, productivity) — e.g. 30 minutes across youtube + netflix
+  combined, then everything in the category blocks. Popular sites are
+  categorized out of the box (`public/categories.json`); you can assign any
+  website to a category (or opt one out) from the popup.

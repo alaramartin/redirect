@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { normalizeWebsiteInput } from "../shared/normalize";
 
 interface LimitFormProps {
   onSetLimit: (website: string, limitSeconds: number, redirect: string) => void;
@@ -13,12 +14,14 @@ export default function LimitForm({ onSetLimit }: LimitFormProps) {
   const [minutes, setMinutes] = useState("");
   const [seconds, setSeconds] = useState("");
   const [redirect, setRedirect] = useState("");
+  const [error, setError] = useState("");
 
   function clearInputs() {
     setWebsite("");
     setHours("");
     setMinutes("");
     setSeconds("");
+    setError("");
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -28,7 +31,14 @@ export default function LimitForm({ onSetLimit }: LimitFormProps) {
       (parseInt(minutes) || 0) * 60 +
       (parseInt(seconds) || 0);
     if (website) {
-      onSetLimit(website, timeLim, redirect);
+      // clean up whatever was typed (full URL, www., mixed case) into the
+      // same canonical hostname the background tracks time under
+      const host = normalizeWebsiteInput(website);
+      if (!host) {
+        setError("Please enter a valid website, e.g. instagram.com");
+        return;
+      }
+      onSetLimit(host, timeLim, redirect);
     }
     clearInputs();
     setShowForm(false);
@@ -93,6 +103,7 @@ export default function LimitForm({ onSetLimit }: LimitFormProps) {
               onChange={(e) => setRedirect(e.target.value)}
             />
           </p>
+          {error && <p className="form-error">{error}</p>}
           <input type="submit" value="Set Limit" />
         </form>
         <button id="cancel-set-limit" onClick={() => setShowForm(false)}>

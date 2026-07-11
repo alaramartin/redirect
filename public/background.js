@@ -30,11 +30,13 @@ chrome.idle.onStateChanged.addListener(async state => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getScreenTime") {
     // check for a missed reset first so the popup never shows stale usage
-    checkAndReset().then(() => loadLimitsList()).then((limits) => {
-      sendResponse({ data: buildUsageMap(limits) });
+    checkAndReset().then(async () => {
+      const limits = await loadLimitsList();
+      const cats = await loadCategories();
+      sendResponse({ data: { sites: buildUsageMap(limits), categories: cats } });
     }).catch((err) => {
       console.error("getScreenTime error", err);
-      sendResponse({ data: {} });
+      sendResponse({ data: { sites: {}, categories: {} } });
     });
     // tells Chrome you're responding async
     return true;
@@ -57,11 +59,112 @@ async function saveLimitsList(list) {
   await chrome.storage.local.set({ "limits": list });
 }
 
+// ---- categories ----
+
+// bundled domain->category defaults, cached for the life of this service
+// worker wake (the file can't change without an extension reload anyway)
+let bundledCategories = null;
+async function loadBundledCategories() {
+  if (bundledCategories) return bundledCategories;
+  try {
+    const resp = await fetch(chrome.runtime.getURL("categories.json"));
+    bundledCategories = await resp.json();
+  } catch (e) {
+    console.error("couldn't load categories.json", e);
+    bundledCategories = { categories: [], domains: {} };
+  }
+  return bundledCategories;
+}
+
+// user-set category limits: { categoryId: { name, timeLimit, timeUsage } },
+// an entry exists only once the user sets a limit for that category
+async function loadCategories() {
+  const result = await chrome.storage.local.get("categories");
+  return result.categories || {};
+}
+
+// user overrides: { hostname: categoryId | null }, null = explicitly
+// uncategorized (beats the bundled default)
+async function loadSiteCategories() {
+  const result = await chrome.storage.local.get("siteCategories");
+  return result.siteCategories || {};
+}
+
+// which category a hostname counts toward: user override first, then the
+// bundled list (suffix match so m.youtube.com matches youtube.com)
+async function getCategoryForHost(host) {
+  if (!host) return null;
+  const bare = host.replace(/^www\./, "");
+  const overrides = await loadSiteCategories();
+  if (bare in overrides) return overrides[bare];
+  if (host in overrides) return overrides[host];
+  const bundled = await loadBundledCategories();
+  for (const [domain, category] of Object.entries(bundled.domains || {})) {
+    if (bare === domain || bare.endsWith("." + domain)) return category;
+  }
+  return null;
+}
+
+// one-time storage migrations
+async function migrate() {
+  const result = await chrome.storage.local.get(["schemaVersion", "categories", "siteCategories"]);
+
+  // v2: older installs only have "limits"
+  if (!(result.schemaVersion >= 2)) {
+    await chrome.storage.local.set({
+      schemaVersion: 2,
+      categories: result.categories || {},
+      siteCategories: result.siteCategories || {}
+    });
+  }
+
+  // v3: hostnames used to be stored verbatim, so "www.instagram.com" and
+  // "instagram.com" were different entries -- merge them under the bare host
+  if (!(result.schemaVersion >= 3)) {
+    const lims = await loadLimitsList();
+    const merged = {};
+    for (const [host, entry] of Object.entries(lims)) {
+      if (!entry || typeof entry !== "object") continue;
+      const bare = normalizeHost(host);
+      if (!merged[bare]) {
+        merged[bare] = { ...entry, websiteName: bare };
+      } else {
+        // combine duplicates: usage adds up, strictest limit wins
+        merged[bare].timeUsage = (Number(merged[bare].timeUsage) || 0) + (Number(entry.timeUsage) || 0);
+        const a = Number(merged[bare].timeLimit) || 0;
+        const b = Number(entry.timeLimit) || 0;
+        merged[bare].timeLimit = a && b ? Math.min(a, b) : (a || b);
+        merged[bare].redirect = merged[bare].redirect || entry.redirect || "";
+      }
+    }
+    const overrides = await loadSiteCategories();
+    const normalizedOverrides = {};
+    for (const [host, cat] of Object.entries(overrides)) {
+      normalizedOverrides[normalizeHost(host)] = cat;
+    }
+    await chrome.storage.local.set({
+      schemaVersion: 3,
+      limits: merged,
+      siteCategories: normalizedOverrides
+    });
+  }
+}
+
+// push current usage (sites + categories) to the popup, if it's open
+async function notifyPopup(limsObj, catsObj) {
+  const cats = catsObj !== undefined ? catsObj : await loadCategories();
+  chrome.runtime.sendMessage({
+    action: "list-of-screen-time",
+    data: { sites: buildUsageMap(limsObj), categories: cats }
+  }).catch(() => {}); // popup may not be open
+}
+
 
 let screenTime = {};
 let lims = {};
 let timeoutId = null;
 async function initialize() {
+  await migrate();
   lims = await loadLimitsList();
   console.log(screenTime, lims);
   timeoutId = null;
@@ -69,10 +172,7 @@ async function initialize() {
   await ensureDailyReset();
 
   // send initial
-  chrome.runtime.sendMessage({
-    action: "list-of-screen-time",
-    data: buildUsageMap(lims)
-  }).catch(() => {}); // popup may not be open
+  await notifyPopup(lims);
 }
 
 // local calendar date as YYYY-M-D, built from local Date parts so it always
@@ -108,8 +208,14 @@ async function checkAndReset() {
       lims[host].timeUsage = 0;
     }
   }
-  await saveLimitsList(lims);
-  await chrome.storage.local.set({ "lastResetDate": today });
+  // category budgets get a fresh day too
+  const cats = await loadCategories();
+  for (const id of Object.keys(cats)) {
+    if (cats[id] && typeof cats[id] === "object") {
+      cats[id].timeUsage = 0;
+    }
+  }
+  await chrome.storage.local.set({ "limits": lims, "categories": cats, "lastResetDate": today });
 
   // fresh day: cancel any pending block timer and restart the current session
   // so a blocked site becomes usable immediately
@@ -121,10 +227,7 @@ async function checkAndReset() {
   if (startTime != null) startTime = Date.now();
 
   // tell popup to reset the list of usage
-  chrome.runtime.sendMessage({
-    action: "list-of-screen-time",
-    data: buildUsageMap(lims)
-  }).catch(() => {}); // popup may not be open
+  await notifyPopup(lims, cats);
   return true;
 }
 
@@ -176,13 +279,21 @@ async function getCurrentTab() {
   return tab;
 }
 
+// canonical form of a hostname: lowercase, no leading "www." -- limits,
+// usage, and overrides are all keyed by this so "instagram.com" and
+// "www.instagram.com" are the same site
+function normalizeHost(host) {
+  if (!host) return host;
+  return host.toLowerCase().replace(/^www\./, "");
+}
+
 function getTabDomain(tab) {
   // if tab isn't null, return domain name of tab
   if (tab && tab.url) {
     try {
       let urlObj = new URL(tab.url);
       console.log("nothing wrong with url", tab.url);
-      return urlObj.hostname;
+      return normalizeHost(urlObj.hostname);
     }
     catch (e) {
       console.log("something wrong with url", tab.url);
@@ -208,10 +319,7 @@ let currentTab = null;
 let timeSpent = 0;
 let startTime = null;
 // display the list
-chrome.runtime.sendMessage({
-  action: "list-of-screen-time",
-  data: buildUsageMap()
-}).catch(() => {}); // popup may not be open
+loadLimitsList().then((l) => notifyPopup(l));
 
 async function updateTime(website, time) {
   if (!website) return;
@@ -232,14 +340,18 @@ async function updateTime(website, time) {
   const prev = Number(lims[website].timeUsage) || 0;
   lims[website].timeUsage = prev + Number(time || 0);
 
-  await saveLimitsList(lims);
+  // the same seconds also count toward the site's category budget, if one is set
+  const cats = await loadCategories();
+  const cat = await getCategoryForHost(website);
+  if (cat && cats[cat]) {
+    cats[cat].timeUsage = (Number(cats[cat].timeUsage) || 0) + Number(time || 0);
+  }
+
+  await chrome.storage.local.set({ "limits": lims, "categories": cats });
   console.log("upadting time spent for", website);
 
   // display the list
-  chrome.runtime.sendMessage({
-    action: "list-of-screen-time",
-    data: buildUsageMap(lims)
-  }).catch(() => {}); // popup may not be open
+  await notifyPopup(lims, cats);
 }
 
 // saves time spent on the website when tab switched
@@ -289,30 +401,42 @@ async function handleWebsiteChange() {
   timeSpent = 0;
   startTime = Date.now();
 
-  // set a timeout timer -> call timeout() when the screen time limit runs out IF THERE IS A TIME LIMIT SET
-  if (lims[currentTabHostname]) {
-    if (!lims[currentTabHostname].timeUsage) lims[currentTabHostname].timeUsage = 0;
-    const limit = Number(lims[currentTabHostname].timeLimit || 0);
-    const usage = Number(lims[currentTabHostname].timeUsage || 0);
-    
-    // time left for that website, in milliseconds
-    let timeLeft = 1000 * (limit - usage);
+  // set a timeout timer -> call timeout() when the screen time limit runs out
+  // IF THERE IS A TIME LIMIT SET, either on the site itself or on its category
+  const siteEntry = lims[currentTabHostname];
+  const siteLimit = siteEntry ? Number(siteEntry.timeLimit || 0) : 0;
+  const siteUsage = siteEntry ? Number(siteEntry.timeUsage || 0) : 0;
+
+  let catLimit = 0;
+  let catUsage = 0;
+  const cat = await getCategoryForHost(currentTabHostname);
+  if (cat) {
+    const cats = await loadCategories();
+    if (cats[cat]) {
+      catLimit = Number(cats[cat].timeLimit || 0);
+      catUsage = Number(cats[cat].timeUsage || 0);
+    }
+  }
+
+  // effective time left = smallest remaining budget among the limits that are set
+  let timeLeft = Infinity;
+  if (siteLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (siteLimit - siteUsage));
+  if (catLimit > 0) timeLeft = Math.min(timeLeft, 1000 * (catLimit - catUsage));
+
+  if (timeLeft !== Infinity) {
     console.log("time difference: ", timeLeft);
-    // if limit has already been surpassed, immediately block
-    if (timeLeft <= 0 && limit > 0) {
-      // default to 10 seconds for testing purposes
-      // timeLeft = 10 * 1000;
+    // if a limit has already been surpassed, immediately block
+    if (timeLeft <= 0) {
       console.log("time limit already surpassed");
       await blockSite(currentTab);
       startTime = null;
     }
     // else, if there is still time left, set timout timer
-    else if (limit > 0) {
+    else {
       // function reference to timeout(), to call after a delay of `timeLeft`
       timeoutId = setTimeout(() => timeout(currentTab), timeLeft);
       console.log("set timeout timer ", timeoutId, " ", currentTabHostname);
     }
-    
   }
 }
 
@@ -345,20 +469,30 @@ async function stopTimer() {
   }
   lims[currentTabHostname].timeUsage = (Number(lims[currentTabHostname].timeUsage) || 0) + timeSpent;
 
+  // cap site usage at its own limit only -- category usage is tracked
+  // separately below and must never be capped by the site's limit
   const limit = Number(lims[currentTabHostname].timeLimit) || 0;
   if (limit > 0 && lims[currentTabHostname].timeUsage > limit) {
     lims[currentTabHostname].timeUsage = limit;
   }
 
-  await saveLimitsList(lims);
+  // the final stretch of time also counts toward the category budget
+  const cats = await loadCategories();
+  const cat = await getCategoryForHost(currentTabHostname);
+  if (cat && cats[cat]) {
+    cats[cat].timeUsage = (Number(cats[cat].timeUsage) || 0) + timeSpent;
+    const catLimit = Number(cats[cat].timeLimit) || 0;
+    if (catLimit > 0 && cats[cat].timeUsage > catLimit) {
+      cats[cat].timeUsage = catLimit;
+    }
+  }
+
+  await chrome.storage.local.set({ "limits": lims, "categories": cats });
   clearTimeout(timeoutId);
   timeoutId = null;
 
   // notify popup
-  chrome.runtime.sendMessage({
-    action: "list-of-screen-time",
-    data: buildUsageMap(lims)
-  }).catch(() => {}); // popup may not be open
+  await notifyPopup(lims, cats);
 }
 
 // inject content script to block access to the site
