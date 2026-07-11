@@ -154,6 +154,35 @@ export default function App() {
     setCategories(payload.categories);
   }
 
+  // removes one site's limit only -- same "zero the fields, keep the entry"
+  // approach as handleReset, so today's usage tracked on this site survives
+  async function handleDeleteSite(host: string) {
+    if (await refuseWhileFocused()) return;
+    const current = await loadLimits();
+    if (!current[host]) return;
+    const updated: LimitsMap = {
+      ...current,
+      [host]: { ...current[host], timeLimit: 0, redirect: "", blocked: false },
+    };
+    await saveLimits(updated);
+    setLimits(updated);
+    if (editTarget?.kind === "site" && editTarget.host === host) setEditTarget(null);
+  }
+
+  // removes one category's limit. unlike sites, a category entry carries no
+  // usage of its own (it's derived from its sites' usage each time it's
+  // requested), so the entry can just be dropped outright.
+  async function handleDeleteCategory(category: string) {
+    if (await refuseWhileFocused()) return;
+    const current = await loadCategories();
+    if (!(category in current)) return;
+    const updated = { ...current };
+    delete updated[category];
+    await saveCategories(updated);
+    setCategories(updated);
+    if (editTarget?.kind === "category" && editTarget.category === category) setEditTarget(null);
+  }
+
   // removes every time limit (site + category) but NEVER touches usage
   // tracking -- usage lives on the same site entries, so we zero the limits
   // in place instead of deleting the entries. category assignments are kept
@@ -209,6 +238,8 @@ export default function App() {
         bundled={bundled}
         onEditSite={(host) => setEditTarget({ kind: "site", host })}
         onEditCategory={(category) => setEditTarget({ kind: "category", category })}
+        onDeleteSite={handleDeleteSite}
+        onDeleteCategory={handleDeleteCategory}
         onReset={handleReset}
         focusLocked={focusLocked}
       />

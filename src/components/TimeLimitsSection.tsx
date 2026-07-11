@@ -10,6 +10,8 @@ interface TimeLimitsSectionProps {
   bundled: BundledCategories;
   onEditSite: (host: string) => void;
   onEditCategory: (category: string) => void;
+  onDeleteSite: (host: string) => void;
+  onDeleteCategory: (category: string) => void;
   onReset: () => void;
   focusLocked: boolean;
 }
@@ -22,6 +24,8 @@ export default function TimeLimitsSection({
   bundled,
   onEditSite,
   onEditCategory,
+  onDeleteSite,
+  onDeleteCategory,
   onReset,
   focusLocked,
 }: TimeLimitsSectionProps) {
@@ -44,14 +48,24 @@ export default function TimeLimitsSection({
               <span className="limit-row-label" title={host}>
                 {displayName(host, bundled)}
               </span>
+              {/* editing/deleting count as modifying limits: hidden during focus mode */}
               {!focusLocked && (
-                <button
-                  className="edit-limit"
-                  title={`Edit the limit for ${host}`}
-                  onClick={() => onEditSite(host)}
-                >
-                  ✎
-                </button>
+                <span className="limit-row-actions">
+                  <button
+                    className="edit-limit"
+                    title={`Edit the limit for ${host}`}
+                    onClick={() => onEditSite(host)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    className="delete-limit"
+                    title={`Delete the limit for ${host}`}
+                    onClick={() => onDeleteSite(host)}
+                  >
+                    ✕
+                  </button>
+                </span>
               )}
             </div>
             <ProgressBar
@@ -72,13 +86,22 @@ export default function TimeLimitsSection({
             <div className="limit-row-header">
               <span className="limit-row-label">{id}</span>
               {!focusLocked && (
-                <button
-                  className="edit-limit"
-                  title={`Edit the ${id} category limit`}
-                  onClick={() => onEditCategory(id)}
-                >
-                  ✎
-                </button>
+                <span className="limit-row-actions">
+                  <button
+                    className="edit-limit"
+                    title={`Edit the ${id} category limit`}
+                    onClick={() => onEditCategory(id)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    className="delete-limit"
+                    title={`Delete the ${id} category limit`}
+                    onClick={() => onDeleteCategory(id)}
+                  >
+                    ✕
+                  </button>
+                </span>
               )}
             </div>
             <ProgressBar value={Number(value.timeUsage)} max={Number(value.timeLimit)} />

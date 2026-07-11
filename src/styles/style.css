@@ -145,11 +145,23 @@ ul {
   margin: 0;
 }
 
-/* small pencil button next to each limit entry */
-.edit-limit {
+/* small pencil/delete buttons next to each limit entry */
+.limit-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.edit-limit,
+.delete-limit {
   padding: 1px 8px;
   font-size: 0.85em;
   color: var(--color-text-muted);
+}
+
+.delete-limit:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .limit-row-header {
