@@ -95,6 +95,19 @@ li {
     text-align: center;
 }
 
+/* small pencil button next to each limit entry */
+.edit-limit {
+    margin: 0 0 0 10px;
+    padding: 1px 8px;
+    cursor: pointer;
+}
+
+/* when an edit icon scrolls its form into view, leave room for the sticky header */
+#limit-form,
+#category-form {
+    scroll-margin-top: 80px;
+}
+
 .form-error {
     color: #5a2727;
     font-style: italic;

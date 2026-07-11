@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BUILT_IN_CATEGORIES,
   MIN_LIMIT_SECONDS,
@@ -15,6 +15,19 @@ interface CategoryFormProps {
   siteCategories: SiteCategoriesMap;
   bundled: BundledCategories;
   onSetCategoryLimit: (category: string, limitSeconds: number, redirect: string) => void;
+  // set when the user clicked a category's edit icon: opens this form
+  // prefilled with its current settings (the category itself is not editable)
+  editCategory?: string | null;
+  onEditDone?: () => void;
+}
+
+// split total seconds into the three form fields, blank for zero parts
+function splitTime(totalSeconds: number): { h: string; m: string; s: string } {
+  const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return { h: h ? String(h) : "", m: m ? String(m) : "", s: s ? String(s) : "" };
 }
 
 // "Add/Modify Category Limit" button plus its hidden form, mirroring LimitForm
@@ -24,6 +37,8 @@ export default function CategoryForm({
   siteCategories,
   bundled,
   onSetCategoryLimit,
+  editCategory = null,
+  onEditDone,
 }: CategoryFormProps) {
   const [showForm, setShowForm] = useState(false);
   const [category, setCategory] = useState<string>(BUILT_IN_CATEGORIES[0]);
@@ -34,6 +49,38 @@ export default function CategoryForm({
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [warnedTarget, setWarnedTarget] = useState<string | null>(null);
+
+  const editing = editCategory !== null;
+
+  // an edit icon was clicked: open the form prefilled with the category's
+  // current settings (re-runs if the user picks a different category)
+  useEffect(() => {
+    if (!editCategory) return;
+    const entry = categories[editCategory];
+    const { h, m, s } = splitTime(entry?.timeLimit ?? 0);
+    setCategory(editCategory);
+    setHours(h);
+    setMinutes(m);
+    setSeconds(s);
+    setRedirect(entry?.redirect ?? "");
+    setError("");
+    setWarning("");
+    setWarnedTarget(null); // warnings re-fire on save, same as creating
+    setShowForm(true);
+    // the edit icon lives further down the popup -- bring the form to it
+    requestAnimationFrame(() =>
+      document.getElementById("category-form")?.scrollIntoView({ behavior: "smooth" })
+    );
+    // categories deliberately not a dependency: refill only on a new edit
+    // click, not on every live usage push while the user is mid-edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editCategory]);
+
+  function closeForm() {
+    clearInputs();
+    setShowForm(false);
+    onEditDone?.();
+  }
 
   function clearInputs() {
     setHours("");
@@ -77,15 +124,16 @@ export default function CategoryForm({
         if (warnText) {
           setError("");
           setWarnedTarget(targetHost);
-          setWarning(`${warnText} Click "Set Limit" again if you're sure.`);
+          setWarning(
+            `${warnText} Click "${editing ? "Save" : "Set Limit"}" again if you're sure.`
+          );
           return;
         }
       }
     }
 
     onSetCategoryLimit(category, timeLim, redirect.trim());
-    clearInputs();
-    setShowForm(false);
+    closeForm();
   }
 
   return (
@@ -107,6 +155,7 @@ export default function CategoryForm({
             <select
               id="categoryselect"
               value={category}
+              disabled={editing}
               onChange={(e) => {
                 setCategory(e.target.value);
                 setWarnedTarget(null);
@@ -165,9 +214,9 @@ export default function CategoryForm({
           </p>
           {error && <p className="form-error">{error}</p>}
           {warning && <p className="form-warning">{warning}</p>}
-          <input type="submit" value="Set Limit" />
+          <input type="submit" value={editing ? "Save" : "Set Limit"} />
         </form>
-        <button id="cancel-set-category" onClick={() => { clearInputs(); setShowForm(false); }}>
+        <button id="cancel-set-category" onClick={closeForm}>
           Cancel
         </button>
       </div>

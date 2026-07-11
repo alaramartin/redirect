@@ -4,11 +4,18 @@ import { formatTime } from "../shared/format";
 interface CategoryListProps {
   categories: CategoriesMap;
   siteCategories: SiteCategoriesMap;
+  onEdit: (category: string) => void;
+  focusLocked: boolean;
 }
 
 // the "Category Limits" panel: each category budget with its combined usage,
 // plus any per-site overrides the user has made
-export default function CategoryList({ categories, siteCategories }: CategoryListProps) {
+export default function CategoryList({
+  categories,
+  siteCategories,
+  onEdit,
+  focusLocked,
+}: CategoryListProps) {
   const entries = Object.entries(categories).filter(
     ([, value]) => value && Number(value.timeLimit) > 0
   );
@@ -25,6 +32,16 @@ export default function CategoryList({ categories, siteCategories }: CategoryLis
             Category: {id}, time limit: {formatTime(Number(value.timeLimit))}, used:{" "}
             {formatTime(Number(value.timeUsage))}
             {value.redirect ? `, redirect: ${value.redirect}` : ""}
+            {/* editing counts as modifying limits: hidden during focus mode */}
+            {!focusLocked && (
+              <button
+                className="edit-limit"
+                title={`Edit the ${id} category limit`}
+                onClick={() => onEdit(id)}
+              >
+                ✎
+              </button>
+            )}
           </li>
         ))}
       </ul>

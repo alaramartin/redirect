@@ -37,6 +37,9 @@ export default function App() {
   const [siteCategories, setSiteCategories] = useState<SiteCategoriesMap>({});
   const [bundled, setBundled] = useState<BundledCategories>(EMPTY_BUNDLED);
   const [focusEnd, setFocusEnd] = useState(0);
+  // which limit an edit icon opened for editing (null = not editing)
+  const [editSite, setEditSite] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState<string | null>(null);
   // ticking clock so the focus countdown is live and the lock lifts the
   // moment the timer runs out, without reopening the popup
   const [now, setNow] = useState(() => Date.now());
@@ -176,6 +179,9 @@ export default function App() {
     await saveFocusEnd(end);
     setFocusEnd(end);
     setNow(Date.now());
+    // any in-progress edit is void once limits are locked
+    setEditSite(null);
+    setEditCategory(null);
   }
 
   return (
@@ -190,6 +196,8 @@ export default function App() {
             siteCategories={siteCategories}
             bundled={bundled}
             onSetLimit={handleSetLimit}
+            editHost={editSite}
+            onEditDone={() => setEditSite(null)}
           />
           <CategoryForm
             limits={limits}
@@ -197,12 +205,24 @@ export default function App() {
             siteCategories={siteCategories}
             bundled={bundled}
             onSetCategoryLimit={handleSetCategoryLimit}
+            editCategory={editCategory}
+            onEditDone={() => setEditCategory(null)}
           />
           <AssignSiteForm onAssignSite={handleAssignSite} />
         </>
       )}
-      <LimitsList limits={limits} onReset={handleReset} focusLocked={focusLocked} />
-      <CategoryList categories={categories} siteCategories={siteCategories} />
+      <LimitsList
+        limits={limits}
+        onReset={handleReset}
+        onEdit={setEditSite}
+        focusLocked={focusLocked}
+      />
+      <CategoryList
+        categories={categories}
+        siteCategories={siteCategories}
+        onEdit={setEditCategory}
+        focusLocked={focusLocked}
+      />
       <UsageList usage={usage} />
     </>
   );

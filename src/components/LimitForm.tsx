@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { normalizeWebsiteInput } from "../shared/normalize";
 import { MIN_LIMIT_SECONDS, MAX_LIMIT_SECONDS } from "../shared/types";
 import type { CategoriesMap, LimitsMap, SiteCategoriesMap } from "../shared/types";
@@ -11,6 +11,19 @@ interface LimitFormProps {
   siteCategories: SiteCategoriesMap;
   bundled: BundledCategories;
   onSetLimit: (website: string, limitSeconds: number, redirect: string, blocked: boolean) => void;
+  // set when the user clicked an edit icon: opens this form prefilled with
+  // that site's current settings (the website field itself is not editable)
+  editHost?: string | null;
+  onEditDone?: () => void;
+}
+
+// split total seconds into the three form fields, blank for zero parts
+function splitTime(totalSeconds: number): { h: string; m: string; s: string } {
+  const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return { h: h ? String(h) : "", m: m ? String(m) : "", s: s ? String(s) : "" };
 }
 
 // the "Add/Modify Website Limit" button plus the (hidden by default) form,
@@ -21,6 +34,8 @@ export default function LimitForm({
   siteCategories,
   bundled,
   onSetLimit,
+  editHost = null,
+  onEditDone,
 }: LimitFormProps) {
   const [showForm, setShowForm] = useState(false);
   const [website, setWebsite] = useState("");
@@ -34,6 +49,39 @@ export default function LimitForm({
   // the redirect host the user has been warned about; submitting again with
   // the same target counts as confirmation
   const [warnedTarget, setWarnedTarget] = useState<string | null>(null);
+
+  const editing = editHost !== null;
+
+  // an edit icon was clicked: open the form prefilled with the site's
+  // current settings (re-runs if the user picks a different site to edit)
+  useEffect(() => {
+    if (!editHost) return;
+    const entry = limits[editHost];
+    const { h, m, s } = splitTime(entry?.timeLimit ?? 0);
+    setWebsite(editHost);
+    setHours(h);
+    setMinutes(m);
+    setSeconds(s);
+    setRedirect(entry?.redirect ?? "");
+    setBlockCompletely(!!entry?.blocked);
+    setError("");
+    setWarning("");
+    setWarnedTarget(null); // warnings re-fire on save, same as creating
+    setShowForm(true);
+    // the edit icon lives further down the popup -- bring the form to it
+    requestAnimationFrame(() =>
+      document.getElementById("limit-form")?.scrollIntoView({ behavior: "smooth" })
+    );
+    // limits deliberately not a dependency: refill only on a new edit click,
+    // not on every background usage write while the user is mid-edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editHost]);
+
+  function closeForm() {
+    clearInputs();
+    setShowForm(false);
+    onEditDone?.();
+  }
 
   function clearInputs() {
     setWebsite("");
@@ -50,8 +98,7 @@ export default function LimitForm({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault(); // stop the extension from reloading
     if (!website) {
-      clearInputs();
-      setShowForm(false);
+      closeForm();
       return;
     }
 
@@ -104,15 +151,16 @@ export default function LimitForm({
         if (warnText) {
           setError("");
           setWarnedTarget(targetHost);
-          setWarning(`${warnText} Click "Set Limit" again if you're sure.`);
+          setWarning(
+            `${warnText} Click "${editing ? "Save" : "Set Limit"}" again if you're sure.`
+          );
           return;
         }
       }
     }
 
     onSetLimit(host, blockCompletely ? 0 : timeLim, redirect, blockCompletely);
-    clearInputs();
-    setShowForm(false);
+    closeForm();
   }
 
   return (
@@ -132,6 +180,7 @@ export default function LimitForm({
               type="text"
               id="timelimurl"
               value={website}
+              disabled={editing}
               onChange={(e) => {
                 setWebsite(e.target.value);
                 setWarnedTarget(null);
@@ -198,9 +247,9 @@ export default function LimitForm({
           </p>
           {error && <p className="form-error">{error}</p>}
           {warning && <p className="form-warning">{warning}</p>}
-          <input type="submit" value="Set Limit" />
+          <input type="submit" value={editing ? "Save" : "Set Limit"} />
         </form>
-        <button id="cancel-set-limit" onClick={() => { clearInputs(); setShowForm(false); }}>
+        <button id="cancel-set-limit" onClick={closeForm}>
           Cancel
         </button>
       </div>
