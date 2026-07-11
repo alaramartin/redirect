@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Website blocked</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #d5dee0;
+        font-family: serif;
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+      }
+      .title {
+        font-size: 28px;
+        color: #2f2f2f;
+        background: #8faebc;
+        border: 3px solid #636d6e;
+        border-radius: 15px;
+        padding: 25px 50px;
+      }
+      .site {
+        font-size: 18px;
+        color: #2f2f2f;
+      }
+      .countdown {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      .countdown-text {
+        font-size: 20px;
+        color: #2f2f2f;
+      }
+      .cancel {
+        font-family: serif;
+        font-size: 17px;
+        color: #2f2f2f;
+        background: white;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px 15px;
+        cursor: pointer;
+      }
+      .notice {
+        display: none;
+        font-style: italic;
+        font-size: 17px;
+        color: #2f2f2f;
+        max-width: 560px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="title">website blocked</div>
+      <div id="blocked-site" class="site"></div>
+      <div id="countdown" class="countdown">
+        <div id="countdown-text" class="countdown-text"></div>
+        <button id="cancel-redirect" class="cancel">Cancel redirect</button>
+      </div>
+      <div id="notice" class="notice"></div>
+    </div>
+    <script src="block-page.js"></script>
+  </body>
+</html>

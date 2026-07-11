@@ -51,9 +51,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.action === "blocked-website") {
-    console.log("block.js activated");
-  }
 });
 
 // get the limits list
@@ -377,10 +374,13 @@ function normalizePath(pathname) {
 // split a limit key into { host, path }; path is "" (bare-host rule) or a
 // leading-slash path ("/shorts", "/shorts/abc")
 function keyParts(key) {
-  const s = key || "";
+  const s = String(key || "").trim().toLowerCase();
+  if (!s) return { host: "", path: "" };
   const i = s.indexOf("/");
-  if (i === -1) return { host: s, path: "" };
-  return { host: s.slice(0, i), path: s.slice(i) };
+  if (i === -1) {
+    return { host: normalizeHost(s), path: "" };
+  }
+  return { host: normalizeHost(s.slice(0, i)), path: normalizePath(s.slice(i)) };
 }
 
 // the bare host part of a limit key (used for category resolution, which is
@@ -430,6 +430,13 @@ function getTabTarget(tab, limsObj) {
   }
   try {
     const urlObj = new URL(tab.url);
+    // only track real web pages: extension pages (our own block.html lives at
+    // chrome-extension://<id>/block.html), chrome://, about:, file://, the new
+    // tab page, etc. are not websites and must never accrue usage. without this
+    // the block page would be tracked under the extension's ID as a "host".
+    if (urlObj.protocol !== "http:" && urlObj.protocol !== "https:") {
+      return undefined;
+    }
     const host = normalizeHost(urlObj.hostname);
     const path = normalizePath(urlObj.pathname);
     return resolveTargetKey(host, path, Object.keys(limsObj || {}));
@@ -483,9 +490,8 @@ async function updateTime(website, time) {
 }
 
 // saves time spent on the website when tab switched
-chrome.tabs.onActivated.addListener(async function(tabId, changeInfo, tab) {
+chrome.tabs.onActivated.addListener(async function(activeInfo) {
   console.log("onactivated");
-
   handleWebsiteChange();
 });
 
@@ -628,26 +634,15 @@ async function stopTimer() {
   await notifyPopup(lims);
 }
 
-// inject content script to block access to the site
+// block access by navigating to an extension-owned block page. this avoids
+// site-specific document/service-worker quirks that can leave a blank page when
+// trying to inject during early navigation.
 async function blockSite(tab) {
   const limsNow = await loadLimitsList();
   const host = getTabTarget(tab, limsNow);
+  if (!host || !tab || !tab.id) return;
   console.log("website blocked on ", host);
-  // inject content script (await so its countdown entry point exists before
-  // we call it below). injectImmediately makes it run right at navigation
-  // commit instead of waiting for the page to finish loading
-  await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ["block.js"],
-    injectImmediately: true
-  });
-  // inject content script's css file
-  await chrome.scripting.insertCSS({
-      target: {
-        tabId: tab.id,
-      },
-      files: ["block.css"]
-    });
+  let notice = "";
 
   // if the user specified a redirect, start the 5-second countdown on the
   // block page (it navigates unless the user cancels). individual rules
@@ -667,6 +662,7 @@ async function blockSite(tab) {
       }
     }
   }
+  let redirectUrl = "";
   if (redirect) {
     // users type bare domains like "youtube.com"; without a scheme the
     // navigation would be relative to the blocked site
@@ -685,35 +681,27 @@ async function blockSite(tab) {
       targetKey = resolveTargetKey(targetHost, normalizePath(tu.pathname), Object.keys(limsNow));
     } catch (e) {
       console.log("invalid redirect url", url);
+      notice = `Your configured redirect website, ${redirect}, isn't a valid URL.`;
     }
-    if (!targetHost) return;
-    const targetTimeLeft = await getTimeLeftForHost(targetKey, limsNow);
-    if (targetTimeLeft <= 0) {
-      console.log("redirect target", targetHost, "is also blocked -- skipping countdown");
-      // tell the user why there's no redirect happening
-      const reason = targetTimeLeft === -Infinity
-        ? "blocked completely"
-        : "also out of time right now";
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (text) => {
-          if (window.__showRedirectSkippedNotice) window.__showRedirectSkippedNotice(text);
-        },
-        args: [`Your configured redirect website, ${targetHost}, is ${reason}.`],
-        injectImmediately: true
-      });
-      return;
+    if (targetHost) {
+      const targetTimeLeft = await getTimeLeftForHost(targetKey, limsNow);
+      if (targetTimeLeft <= 0) {
+        console.log("redirect target", targetHost, "is also blocked -- skipping countdown");
+        const reason = targetTimeLeft === -Infinity
+          ? "blocked completely"
+          : "also out of time right now";
+        notice = `Your configured redirect website, ${targetHost}, is ${reason}.`;
+      } else {
+        redirectUrl = url;
+      }
     }
-
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (u) => {
-        if (window.__startRedirectCountdown) window.__startRedirectCountdown(u);
-      },
-      args: [url],
-      injectImmediately: true
-    });
   }
+
+  const blockUrl = new URL(chrome.runtime.getURL("block.html"));
+  blockUrl.searchParams.set("host", host);
+  if (redirectUrl) blockUrl.searchParams.set("redirect", redirectUrl);
+  if (notice) blockUrl.searchParams.set("notice", notice);
+  await chrome.tabs.update(tab.id, { url: blockUrl.toString() });
 }
 
 // live ticker: while the popup is open it connects a port, and we push a
