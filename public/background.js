@@ -1,11 +1,9 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("Service worker activated!");
   initialize();
 });
 
 // the alarm alone isn't reliable across browser restarts, so re-initialize on startup too
 chrome.runtime.onStartup.addListener(() => {
-  console.log("Browser started up");
   initialize();
 });
 
@@ -97,7 +95,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function loadLimitsList() {
   const result = await chrome.storage.local.get("limits");
   if (result.limits == undefined) return {};
-  console.log("loadlimlist", result.limits);
   return result.limits;
 }
 
@@ -328,12 +325,14 @@ async function scheduleNearLimitNotice(key, timeLeftMs, limsObj) {
   if (info.notified) return; // already sent today (or since this limit was set)
 
   const delay = timeLeftMs - NEAR_LIMIT_WARNING_SECONDS * 1000;
-  if (delay <= 0) {
-    // already within the last 5 minutes the moment this tab became active
-    await fireNearLimitNotice(key, info);
-  } else {
-    notifyTimeoutId = setTimeout(() => fireNearLimitNotice(key, info), delay);
-  }
+  // don't warn if the tab is already inside its final 5 minutes when it becomes
+  // active (delay < 0) -- e.g. a limit set on a site that's already near its cap.
+  // the notification is a *heads-up* and only makes sense with real lead time;
+  // firing it now would falsely announce "about 5 minutes left" with far less
+  // (seconds, even) actually remaining. delay === 0 means exactly 5 minutes are
+  // left, which is still a valid heads-up, so it fires on the next tick.
+  if (delay < 0) return;
+  notifyTimeoutId = setTimeout(() => fireNearLimitNotice(key, info), delay);
 }
 
 // fires the notification and marks it sent so it never repeats for this
@@ -409,7 +408,6 @@ const NEAR_LIMIT_WARNING_SECONDS = 5 * 60;
 async function initialize() {
   await migrate();
   lims = await loadLimitsList();
-  console.log(screenTime, lims);
   timeoutId = null;
 
   await ensureDailyReset();
@@ -444,7 +442,6 @@ async function checkAndReset() {
 
   if (result.lastResetDate === today) return false;
 
-  console.log("new day detected, resetting usage. last reset:", result.lastResetDate);
   lims = await loadLimitsList();
   for (const host of Object.keys(lims || {})) {
     if (lims[host] && typeof lims[host] === "object") {
@@ -501,7 +498,6 @@ function getMinutesUntilMidnight() {
   // making sure it's at least 0.01, in case it fires at midnight
   const minUntilMidnight = Math.max(0.01, ((midnight - now) / 60000).toFixed(2));
 
-  console.log(minUntilMidnight, " minutes until midnight");
   
   return minUntilMidnight;
 }
@@ -597,7 +593,6 @@ function resolveTargetKey(host, path, keys) {
 // section of a site instead of the whole host.
 function getTabTarget(tab, limsObj) {
   if (!(tab && tab.url)) {
-    console.log("tab was null");
     return undefined;
   }
   try {
@@ -613,7 +608,6 @@ function getTabTarget(tab, limsObj) {
     const path = normalizePath(urlObj.pathname);
     return resolveTargetKey(host, path, Object.keys(limsObj || {}));
   } catch (e) {
-    console.log("something wrong with url", tab.url, e);
     return undefined;
   }
 }
@@ -655,7 +649,6 @@ async function updateTime(website, time) {
   lims[website].timeUsage = prev + Number(time || 0);
 
   await saveLimitsList(lims);
-  console.log("upadting time spent for", website);
 
   // display the list
   await notifyPopup(lims);
@@ -663,20 +656,17 @@ async function updateTime(website, time) {
 
 // saves time spent on the website when tab switched
 chrome.tabs.onActivated.addListener(async function(activeInfo) {
-  console.log("onactivated");
   handleWebsiteChange();
 });
 
 // if the tab was updated and the website was changed, just act like the tab was changed
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
-  console.log("onupdated");
 
   // changeInfo.url fires when the navigation commits -- before the page
   // renders -- so an already-over-limit site gets blocked before it shows.
   // "complete" is kept as a fallback (e.g. if the commit-time injection
   // landed too early); the block overlay's guard makes re-blocking a no-op.
   if (changeInfo.url || changeInfo.status === "complete") {
-    console.log("changeInfo.url: ", changeInfo.url);
     handleWebsiteChange();
   }
 });
@@ -696,10 +686,8 @@ async function handleWebsiteChange() {
   let currentTabHostname = getTabTarget(currentTab, lims);
   let oldTabHostname = getTabTarget(oldTab, lims);
   if (oldTab) {
-    console.log("(updated) Tab changed. Old:", oldTabHostname, "New:", currentTabHostname);
   }
   else {
-    console.log("(updated) New tab: ", currentTabHostname);
   }
 
   // update time spent on previous tab if not timed out/exists
@@ -731,17 +719,14 @@ async function handleWebsiteChange() {
 
   if (timeLeft !== Infinity && timeLeft <= 0) {
     // limit already surpassed: block and leave the session stopped
-    console.log("time limit already surpassed");
     await blockSite(currentTab);
     return;
   }
 
   startTime = Date.now();
   if (timeLeft !== Infinity) {
-    console.log("time difference: ", timeLeft);
     // function reference to timeout(), to call after a delay of `timeLeft`
     timeoutId = setTimeout(() => timeout(currentTab), timeLeft);
-    console.log("set timeout timer ", timeoutId, " ", currentTabHostname);
   }
 
   // arm the "5 minutes left" notice for whichever budget governs this tab
@@ -766,26 +751,22 @@ async function timeout(tab) {
 
   if (timeLeft === Infinity) {
     // no limit applies anymore: keep tracking, just drop the stale timer
-    console.log("stale block timer for", host, "-- limit no longer set");
     timeoutId = null;
     return;
   }
   if (timeLeft > 1000) {
     // limit was raised meanwhile: re-arm for the new remainder
-    console.log("limit changed for", host, "-- re-arming for", timeLeft, "ms");
     timeoutId = setTimeout(() => timeout(tab), timeLeft);
     return;
   }
 
   await blockSite(tab);
-  console.log("timed out ", host, "!");
   // stop tracking time on the website
   await stopTimer();
 }
 
 // if timeout() called, stop recording time, update screenTime with screenTime = timeLimit (which should == timeSpent)
 async function stopTimer() {
-  console.log("received stop-timer");
   lims = await loadLimitsList();
   let currentTabHostname = getTabTarget(currentTab, lims);
   if (!currentTabHostname) return;
@@ -834,7 +815,6 @@ async function blockSite(tab) {
   const limsNow = await loadLimitsList();
   const host = getTabTarget(tab, limsNow);
   if (!host || !tab || !tab.id) return;
-  console.log("website blocked on ", host);
   let notice = "";
 
   // if the user specified a redirect, start the 5-second countdown on the
@@ -873,13 +853,11 @@ async function blockSite(tab) {
       // path-scoped block/limit on the target is caught too
       targetKey = resolveTargetKey(targetHost, normalizePath(tu.pathname), Object.keys(limsNow));
     } catch (e) {
-      console.log("invalid redirect url", url);
       notice = `Your configured redirect website, ${redirect}, isn't a valid URL.`;
     }
     if (targetHost) {
       const targetTimeLeft = await getTimeLeftForHost(targetKey, limsNow);
       if (targetTimeLeft <= 0) {
-        console.log("redirect target", targetHost, "is also blocked -- skipping countdown");
         const reason = targetTimeLeft === -Infinity
           ? "blocked completely"
           : "also out of time right now";

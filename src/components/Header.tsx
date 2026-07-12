@@ -1,14 +1,16 @@
 import { formatTotalTime } from "../shared/format";
 
 interface HeaderProps {
-  totalSeconds: number;
+    totalSeconds: number;
 }
 
 export default function Header({ totalSeconds }: HeaderProps) {
-  return (
-    <header>
-      <span>Screen time</span>
-      <span className="header-total">{formatTotalTime(totalSeconds)}</span>
-    </header>
-  );
+    return (
+        <header>
+            <span>Redirect</span>
+            <span className="header-total">
+                {formatTotalTime(totalSeconds)}
+            </span>
+        </header>
+    );
 }

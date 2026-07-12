@@ -3,7 +3,7 @@
     "name": "Redirect - rerouting your screen time habits",
     "version": "1.0",
     "description": "Set limits on distracting sites and get redirected somewhere better. View analytics, set custom rules, regain your productivity.",
-    "permissions": ["storage", "tabs", "alarms", "idle", "notifications"],
+    "permissions": ["storage", "alarms", "idle", "notifications"],
     "background": {
         "service_worker": "background.js",
         "type": "module"
@@ -11,6 +11,9 @@
     "action": {
         "default_popup": "popup.html",
         "default_icon": "icon.png"
+    },
+    "icons": {
+        "128": "icon.png"
     },
     "host_permissions": ["<all_urls>"]
 }

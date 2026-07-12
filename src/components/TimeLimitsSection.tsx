@@ -1,4 +1,10 @@
-import type { CategoriesMap, CategoryLimit, LimitsMap, SiteLimit, UsageMap } from "../shared/types";
+import type {
+    CategoriesMap,
+    CategoryLimit,
+    LimitsMap,
+    SiteLimit,
+    UsageMap,
+} from "../shared/types";
 import type { BundledCategories } from "../shared/categories";
 import { formatTime } from "../shared/format";
 import { displayName } from "../shared/siteName";
@@ -75,7 +81,10 @@ export default function TimeLimitsSection({
             value,
             liveUsage,
             blocked: !!value.blocked,
-            pct: Number(value.timeLimit) > 0 ? liveUsage / Number(value.timeLimit) : 0,
+            pct:
+                Number(value.timeLimit) > 0
+                    ? liveUsage / Number(value.timeLimit)
+                    : 0,
         };
     });
     const categoryRows: Row[] = categoryEntries.map(([id, value]) => ({
@@ -83,7 +92,10 @@ export default function TimeLimitsSection({
         key: id,
         value,
         blocked: false,
-        pct: Number(value.timeLimit) > 0 ? Number(value.timeUsage) / Number(value.timeLimit) : 0,
+        pct:
+            Number(value.timeLimit) > 0
+                ? Number(value.timeUsage) / Number(value.timeLimit)
+                : 0,
     }));
 
     // most-used-up first; outright-blocked entries have no meaningful
@@ -96,13 +108,16 @@ export default function TimeLimitsSection({
 
     return (
         <div id="limits" className="panel">
-            <p className="panel-title">Time limits</p>
+            <p className="panel-title">Time Limits</p>
             <ul id="list-of-limits">
                 {rows.map((row) =>
                     row.kind === "site" ? (
                         <li key={`site-${row.key}`}>
                             <div className="limit-row-header">
-                                <span className="limit-row-label" title={row.key}>
+                                <span
+                                    className="limit-row-label"
+                                    title={row.key}
+                                >
                                     {displayName(row.key, bundled)}
                                 </span>
                                 {/* editing/deleting count as modifying limits: hidden during focus mode */}
@@ -118,7 +133,9 @@ export default function TimeLimitsSection({
                                         <button
                                             className="delete-limit"
                                             title={`Delete the limit for ${row.key}`}
-                                            onClick={() => onDeleteSite(row.key)}
+                                            onClick={() =>
+                                                onDeleteSite(row.key)
+                                            }
                                         >
                                             ✕
                                         </button>
@@ -142,20 +159,26 @@ export default function TimeLimitsSection({
                     ) : (
                         <li key={`category-${row.key}`}>
                             <div className="limit-row-header">
-                                <span className="limit-row-label">{row.key}</span>
+                                <span className="limit-row-label">
+                                    {row.key}
+                                </span>
                                 {!focusLocked && (
                                     <span className="limit-row-actions">
                                         <button
                                             className="edit-limit"
                                             title={`Edit the ${row.key} category limit`}
-                                            onClick={() => onEditCategory(row.key)}
+                                            onClick={() =>
+                                                onEditCategory(row.key)
+                                            }
                                         >
                                             ✎
                                         </button>
                                         <button
                                             className="delete-limit"
                                             title={`Delete the ${row.key} category limit`}
-                                            onClick={() => onDeleteCategory(row.key)}
+                                            onClick={() =>
+                                                onDeleteCategory(row.key)
+                                            }
                                         >
                                             ✕
                                         </button>
