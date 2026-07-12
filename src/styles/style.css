@@ -327,6 +327,87 @@ ul {
     white-space: nowrap;
 }
 
+/* category manager (the "Modify categories" view): one li per category,
+   each holding its own member list + add-site form */
+/* the shared .limit-row-header's margin-bottom assumes there's always
+   content below it (a progress bar, in TimeLimitsSection) -- a collapsed
+   category row has nothing below, so that margin would add space under the
+   header without a matching gap above it, visually pushing it toward the
+   top of the row. Zero it out here and move the gap onto .category-body,
+   which only exists once a category is actually expanded. */
+li.category-row > .limit-row-header {
+    margin-bottom: 0;
+}
+
+.category-body {
+    margin-top: 8px;
+}
+
+.category-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: none;
+    padding: 0;
+    text-align: left;
+    color: inherit;
+}
+
+.category-toggle:hover {
+    background: none;
+}
+
+.category-toggle-icon {
+    color: var(--color-text-muted);
+    width: 0.8em;
+    flex-shrink: 0;
+}
+
+.category-count {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-size: 0.9em;
+}
+
+.category-members {
+    margin: 8px 0 0;
+}
+
+.category-members li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 0;
+    padding: 4px 2px;
+    border: none;
+    background: none;
+}
+
+.add-site-form,
+.add-category-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.add-site-form input[type="text"],
+.add-category-form input[type="text"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.add-site-form button,
+.add-category-form button {
+    flex-shrink: 0;
+}
+
+#category-manager .add-category-form {
+    margin-top: 12px;
+}
+
 /* hour/minute/second duration dropdown row */
 .duration-select {
     display: inline-flex;

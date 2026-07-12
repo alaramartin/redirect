@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import FocusMode from "./components/FocusMode";
 import AddLimitForm from "./components/AddLimitForm";
-import AssignSiteForm from "./components/AssignSiteForm";
+import CategoryManager from "./components/CategoryManager";
 import TimeLimitsSection from "./components/TimeLimitsSection";
-import CategoryAssignmentsList from "./components/CategoryAssignmentsList";
 import UsageSection from "./components/UsageSection";
 import type {
   BackgroundMessage,
@@ -15,6 +14,7 @@ import type {
   SiteLimit,
   UsageMap,
 } from "./shared/types";
+import { BUILT_IN_CATEGORIES } from "./shared/types";
 import {
   loadLimits,
   saveLimits,
@@ -22,6 +22,8 @@ import {
   saveCategories,
   loadSiteCategories,
   saveSiteCategories,
+  loadCustomCategories,
+  saveCustomCategories,
   loadFocusEnd,
   saveFocusEnd,
   isFocusLocked,
@@ -35,7 +37,10 @@ export default function App() {
   const [usage, setUsage] = useState<UsageMap>({});
   const [categories, setCategories] = useState<CategoriesMap>({});
   const [siteCategories, setSiteCategories] = useState<SiteCategoriesMap>({});
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [bundled, setBundled] = useState<BundledCategories>(EMPTY_BUNDLED);
+  // built-in defaults plus whatever the user has added via "Add category"
+  const allCategories = [...BUILT_IN_CATEGORIES, ...customCategories];
   const [focusEnd, setFocusEnd] = useState(0);
   // which entry an edit icon opened for editing (null = not editing)
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
@@ -53,6 +58,7 @@ export default function App() {
     // initial load: limits/overrides from storage, usage from the background
     loadLimits().then(setLimits);
     loadSiteCategories().then(setSiteCategories);
+    loadCustomCategories().then(setCustomCategories);
     loadBundledCategories().then(setBundled);
     loadFocusEnd().then(setFocusEnd);
     requestUsage().then((payload) => {
@@ -154,6 +160,61 @@ export default function App() {
     setCategories(payload.categories);
   }
 
+  // creates a new user-defined category (id is the slugified name). the
+  // caller (CategoryManager) already validated the name is non-empty and
+  // doesn't collide with an existing category.
+  async function handleAddCategory(id: string) {
+    if (await refuseWhileFocused()) return;
+    const current = await loadCustomCategories();
+    if (current.includes(id)) return;
+    const updated = [...current, id];
+    await saveCustomCategories(updated);
+    setCustomCategories(updated);
+  }
+
+  // deletes a user-defined category entirely (not just its limit, unlike
+  // handleDeleteCategory below): removes it from the custom-category list,
+  // drops its limit if one was set, and clears any site overrides pointing
+  // at it (those sites fall back to their bundled default, or uncategorized
+  // if they have none) so nothing is left referencing a category that no
+  // longer exists. built-in categories can't be deleted -- guarded here too,
+  // not just by the manager UI hiding the button.
+  async function handleDeleteCategoryDefinition(category: string) {
+    if ((BUILT_IN_CATEGORIES as readonly string[]).includes(category)) return;
+    if (await refuseWhileFocused()) return;
+
+    const currentCustom = await loadCustomCategories();
+    const updatedCustom = currentCustom.filter((c) => c !== category);
+    await saveCustomCategories(updatedCustom);
+    setCustomCategories(updatedCustom);
+
+    const currentCategories = await loadCategories();
+    if (category in currentCategories) {
+      const updatedCategories = { ...currentCategories };
+      delete updatedCategories[category];
+      await saveCategories(updatedCategories);
+      setCategories(updatedCategories);
+    }
+
+    const currentOverrides = await loadSiteCategories();
+    const updatedOverrides = { ...currentOverrides };
+    let overridesChanged = false;
+    for (const [host, cat] of Object.entries(updatedOverrides)) {
+      if (cat === category) {
+        delete updatedOverrides[host];
+        overridesChanged = true;
+      }
+    }
+    if (overridesChanged) {
+      await saveSiteCategories(updatedOverrides);
+      setSiteCategories(updatedOverrides);
+    }
+
+    if (editTarget?.kind === "category" && editTarget.category === category) {
+      setEditTarget(null);
+    }
+  }
+
   // removes one site's limit only -- same "zero the fields, keep the entry"
   // approach as handleReset, so today's usage tracked on this site survives
   async function handleDeleteSite(host: string) {
@@ -223,12 +284,21 @@ export default function App() {
               categories={categories}
               siteCategories={siteCategories}
               bundled={bundled}
+              allCategories={allCategories}
               onSetLimit={handleSetLimit}
               onSetCategoryLimit={handleSetCategoryLimit}
               editTarget={editTarget}
               onEditDone={() => setEditTarget(null)}
             />
-            <AssignSiteForm onAssignSite={handleAssignSite} />
+            <CategoryManager
+              allCategories={allCategories}
+              customCategories={customCategories}
+              siteCategories={siteCategories}
+              bundled={bundled}
+              onAssignSite={handleAssignSite}
+              onAddCategory={handleAddCategory}
+              onDeleteCategory={handleDeleteCategoryDefinition}
+            />
           </>
         )}
       </div>
@@ -244,7 +314,6 @@ export default function App() {
         onReset={handleReset}
         focusLocked={focusLocked}
       />
-      <CategoryAssignmentsList siteCategories={siteCategories} bundled={bundled} />
       <UsageSection usage={usage} bundled={bundled} />
     </>
   );

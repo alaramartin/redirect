@@ -27,6 +27,17 @@ export async function saveSiteCategories(siteCategories: SiteCategoriesMap): Pro
   await chrome.storage.local.set({ siteCategories });
 }
 
+// user-created category ids, in addition to the six bundled defaults in
+// BUILT_IN_CATEGORIES -- lets the category manager offer "Add category"
+export async function loadCustomCategories(): Promise<string[]> {
+  const result = await chrome.storage.local.get("customCategories");
+  return (result.customCategories as string[]) ?? [];
+}
+
+export async function saveCustomCategories(customCategories: string[]): Promise<void> {
+  await chrome.storage.local.set({ customCategories });
+}
+
 // focus-mode end time in ms epoch, 0 if none was ever set (a past endTime
 // just means focus mode is over -- callers compare against Date.now())
 export async function loadFocusEnd(): Promise<number> {

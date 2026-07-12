@@ -357,7 +357,7 @@ async function fireNearLimitNotice(key, info) {
   chrome.notifications.create(`near-limit-${fresh.scope}-${fresh.id}`, {
     type: "basic",
     iconUrl: "icon.png",
-    title: "Almost out of time",
+    title: "Time limit extension: Almost out of time",
     message,
   });
 

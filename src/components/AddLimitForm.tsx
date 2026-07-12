@@ -13,6 +13,8 @@ interface AddLimitFormProps {
   categories: CategoriesMap;
   siteCategories: SiteCategoriesMap;
   bundled: BundledCategories;
+  // built-in categories plus any the user has created via "Add category"
+  allCategories: string[];
   onSetLimit: (website: string, limitSeconds: number, redirect: string, blocked: boolean) => void;
   onSetCategoryLimit: (category: string, limitSeconds: number, redirect: string) => void;
   // set when an edit pencil was clicked: opens this form prefilled with that
@@ -29,6 +31,7 @@ export default function AddLimitForm({
   categories,
   siteCategories,
   bundled,
+  allCategories,
   onSetLimit,
   onSetCategoryLimit,
   editTarget,
@@ -265,7 +268,7 @@ export default function AddLimitForm({
                   setWarning("");
                 }}
               >
-                {BUILT_IN_CATEGORIES.map((c) => (
+                {allCategories.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
