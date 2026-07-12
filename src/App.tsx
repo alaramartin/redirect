@@ -272,9 +272,11 @@ export default function App() {
     setEditTarget(null);
   }
 
+  const totalSecondsToday = Object.values(usage).reduce((sum, s) => sum + s, 0);
+
   return (
     <>
-      <Header />
+      <Header totalSeconds={totalSecondsToday} />
       <div className="button-row">
         <FocusMode focusEnd={focusEnd} now={now} onStart={handleStartFocus} />
         {!focusLocked && (

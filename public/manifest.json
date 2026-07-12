@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Time Limit",
+    "name": "Redirect - rerouting your screen time habits",
     "version": "1.0",
-    "description": "Set a limit for any website to get blocked after a certain amount of time.",
+    "description": "Set limits on distracting sites and get redirected somewhere better. View analytics, set custom rules, regain your productivity.",
     "permissions": ["storage", "tabs", "alarms", "idle", "notifications"],
     "background": {
         "service_worker": "background.js",
