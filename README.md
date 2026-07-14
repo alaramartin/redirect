@@ -1,14 +1,16 @@
-# timelim (name TBD)
+# Redirect
 
-This is a Chrome extension that lets users set time limits and checks if the limit has been reached, then blocks the website. Pretty simple, but the Chrome extension I used to use was buggy, so I thought I'd build one myself. I started this project over a year ago when I barely knew how to code at all, so the biggest hurdle I faced was learning JavaScript and just figuring out how DOM and everything web-related worked.
+Download the extension on the [Chrome Web Store here](https://chromewebstore.google.com/detail/redirect-rerouting-your-s/codaengcdkfgecfakjdpclppcpnmoglh)!
+
+A Chrome extension to set time limits on websites and tracks usage analytics. Optionally, choose a website to be redirected to immediately when your limit is up, ensuring that you get your focus back on track.
 
 ## features
 
-- set a time limit for any website
-- track screen time usage
-- resets daily!
-- set a shared limit on a whole category (entertainment, social, news,
-  shopping, games, productivity), where popular sites are
-  categorized out of the box (`public/categories.json`); you can assign any
-  website to a category (or opt one out) from the popup.
-- set a "redirect website" that automatically redirects you when a limit is reached
+- Decide what website you want to be automatically redirected to once your time limit is up, making sure that you do, for example, go back to studying immediately after you've finished your allotted Netflix time
+- Set screen time limits for individual websites as well as broad categories
+- Define your own custom categories (such as "work") alongside preset default categories including entertainment, social, shopping, and more
+- View detailed usage analytics per day: time spent on each website, total screen time daily, and a bar chart for visualization
+- Turn on focus mode, a mode where you cannot modify or remove any limits for a set duration
+- Block specific pages or sections of a site (e.g. only YouTube Shorts) without limiting the whole domain
+- Optionally block websites outright rather than limiting time
+- Get a heads-up notification when you have 5 minutes left of a limit
