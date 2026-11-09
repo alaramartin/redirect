@@ -16,8 +16,10 @@ interface UsageSectionProps {
 // whether it's also time-limited or blocked, plus a full reference list of
 // every tracked website's usage underneath.
 export default function UsageSection({ usage, bundled }: UsageSectionProps) {
+  // limit entries stay in storage across days with their usage zeroed by the
+  // daily reset, so skip anything that wouldn't show at least 1 second today
   const allEntries = Object.entries(usage)
-    .filter(([host]) => host && host !== "undefined")
+    .filter(([host, seconds]) => host && host !== "undefined" && Math.round(seconds) >= 1)
     .sort((a, b) => b[1] - a[1]);
 
   if (allEntries.length === 0) return null;

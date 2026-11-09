@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Redirect - rerouting your screen time habits",
-    "version": "1.0",
+    "version": "1.0.1",
     "description": "Set limits on distracting sites and get redirected somewhere better. View analytics, set custom rules, regain your productivity.",
     "permissions": ["storage", "alarms", "idle", "notifications"],
     "background": {
